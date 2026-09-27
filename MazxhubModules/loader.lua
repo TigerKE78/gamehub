@@ -15,7 +15,7 @@ end
 local ENV = type(getgenv) == "function" and getgenv() or _G
 
 local DEFAULT_BASE =
-    "https://raw.githubusercontent.com/YOUR_NAME/YOUR_REPO/main/MazxhubModules/"
+    "https://raw.githubusercontent.com/TigerKE78/gamehub/master/MazxhubModules/"
 
 local BOOT_RETRIES = 3
 local BOOT_RETRY_DELAY = 0.35
