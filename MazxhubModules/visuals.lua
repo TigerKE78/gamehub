@@ -8,6 +8,10 @@ local Visuals = {
     Color = Color3.fromRGB(139, 124, 246),
     OutlineColor = Color3.fromRGB(255, 255, 255),
     MaxDistance = 1000,
+    ShowDistance = true,
+    HideWhenAiming = false,
+    LabelScale = 1,
+    LabelLayout = "Stacked",
 
     Bandit = false,
     Civilian = false,
@@ -414,6 +418,14 @@ function Visuals:Render()
     local camera = workspace.CurrentCamera
     if not camera then return end
 
+    local input = self.Ctx.Services.UserInputService
+    local aiming =
+        self.HideWhenAiming
+        and input
+        and input:IsMouseButtonPressed(
+            Enum.UserInputType.MouseButton2
+        )
+
     for player, data in pairs(self.PlayerCache) do
         local char = player.Character
         local root = rootOf(char)
@@ -440,30 +452,111 @@ function Visuals:Render()
 
         if data.Billboard then
             data.Billboard.Enabled =
-                visible and self.Enabled
+                visible and self.Enabled and not aiming
             data.Billboard.MaxDistance =
                 self.MaxDistance
         end
 
         if data.Highlight then
             data.Highlight.Enabled =
-                visible and self.Outlines
+                visible and self.Outlines and not aiming
 
             data.Highlight.FillColor = self.Color
             data.Highlight.OutlineColor =
                 self.OutlineColor
         end
 
-        if data.NameLabel then
-            data.NameLabel.TextColor3 = self.Color
+        if data.Billboard then
+            local scale = math.clamp(
+                tonumber(self.LabelScale) or 1,
+                0.5,
+                2
+            )
+
+            if self.LabelLayout == "Inline" then
+                data.Billboard.Size =
+                    UDim2.fromOffset(
+                        math.floor(240 * scale),
+                        math.floor(28 * scale)
+                    )
+            elseif self.LabelLayout == "Compact" then
+                data.Billboard.Size =
+                    UDim2.fromOffset(
+                        math.floor(170 * scale),
+                        math.floor(22 * scale)
+                    )
+            else
+                data.Billboard.Size =
+                    UDim2.fromOffset(
+                        math.floor(200 * scale),
+                        math.floor(50 * scale)
+                    )
+            end
         end
 
-        if data.DistanceLabel and visible then
-            data.DistanceLabel.Text =
-                string.format(
-                    "[%d studs]",
-                    math.floor(distance)
+        if data.NameLabel then
+            local scale = math.clamp(
+                tonumber(self.LabelScale) or 1,
+                0.5,
+                2
+            )
+
+            data.NameLabel.TextColor3 = self.Color
+            data.NameLabel.TextSize =
+                math.floor(
+                    (self.LabelLayout == "Compact" and 11 or 14)
+                    * scale
                 )
+
+            if self.LabelLayout == "Stacked" then
+                data.NameLabel.Position = UDim2.new()
+                data.NameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+                data.NameLabel.Text = player.Name
+            else
+                data.NameLabel.Position = UDim2.new()
+                data.NameLabel.Size = UDim2.fromScale(1, 1)
+                data.NameLabel.Text =
+                    player.Name
+                    .. (
+                        self.ShowDistance
+                        and visible
+                        and string.format(
+                            "  [%d]",
+                            math.floor(distance)
+                        )
+                        or ""
+                    )
+            end
+        end
+
+        if data.DistanceLabel then
+            local stacked =
+                self.LabelLayout == "Stacked"
+
+            data.DistanceLabel.Visible =
+                stacked
+                and self.ShowDistance
+                and not aiming
+
+            data.DistanceLabel.TextSize =
+                math.floor(
+                    12
+                    * math.clamp(
+                        tonumber(self.LabelScale) or 1,
+                        0.5,
+                        2
+                    )
+                )
+
+            if visible
+                and self.ShowDistance
+                and stacked then
+                data.DistanceLabel.Text =
+                    string.format(
+                        "[%d studs]",
+                        math.floor(distance)
+                    )
+            end
         end
 
         if data.Line then
@@ -471,7 +564,7 @@ function Visuals:Render()
             self:UpdateLine(
                 data.Line,
                 root,
-                visible and self.Lines,
+                visible and self.Lines and not aiming,
                 self.MaxDistance,
                 camera
             )
@@ -510,19 +603,19 @@ function Visuals:Render()
         end
 
         if data.Billboard then
-            data.Billboard.Enabled = visible
+            data.Billboard.Enabled = visible and not aiming
             data.Billboard.MaxDistance =
                 self.MaxDistance
         end
 
         if data.Highlight then
-            data.Highlight.Enabled = visible
+            data.Highlight.Enabled = visible and not aiming
         end
 
         self:UpdateLine(
             data.Line,
             root,
-            visible and self.Lines,
+            visible and self.Lines and not aiming,
             self.MaxDistance,
             camera
         )
@@ -581,6 +674,35 @@ function Visuals:SetMaxDistance(value)
             100,
             3000
         )
+end
+
+function Visuals:SetShowDistance(on)
+    self.ShowDistance = on == true
+end
+
+function Visuals:SetHideWhenAiming(on)
+    self.HideWhenAiming = on == true
+end
+
+function Visuals:SetLabelScale(value)
+    self.LabelScale =
+        math.clamp(
+            tonumber(value) or 1,
+            0.5,
+            2
+        )
+end
+
+function Visuals:SetLabelLayout(value)
+    value = tostring(value or "Stacked")
+
+    if value ~= "Stacked"
+        and value ~= "Inline"
+        and value ~= "Compact" then
+        value = "Stacked"
+    end
+
+    self.LabelLayout = value
 end
 
 function Visuals:Step()

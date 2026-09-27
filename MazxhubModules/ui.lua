@@ -9,6 +9,7 @@ local UI = {
     IsOpen = false,
     ActiveMenu = "Farm",
     ActiveSubTab = nil,
+    AnimationsEnabled = true,
 }
 
 local TweenService = game:GetService("TweenService")
@@ -85,6 +86,13 @@ local function label(parent, text, size, color, font, position, frameSize)
 end
 
 local function tween(object, props)
+    if UI.AnimationsEnabled == false then
+        for key, value in pairs(props) do
+            object[key] = value
+        end
+        return
+    end
+
     TweenService:Create(object, TI, props):Play()
 end
 
@@ -1917,6 +1925,7 @@ end
 
 function UI:BuildSettingsPage()
     local settings = self:Settings()
+    local visuals = self:Visuals()
     local left, right = self:CreatePage("Settings")
 
     self:CreateSection(left, "ภาษา")
@@ -1946,7 +1955,10 @@ function UI:BuildSettingsPage()
         "Label layout",
         "Stacking style",
         { "Stacked", "Inline", "Compact" },
-        "Stacked"
+        visuals.LabelLayout or "Stacked",
+        function(value)
+            visuals:SetLabelLayout(value)
+        end
     )
 
     self:CreateSlider(
@@ -1955,12 +1967,30 @@ function UI:BuildSettingsPage()
         "Text size multiplier",
         50,
         200,
-        100,
-        "%"
+        math.floor((visuals.LabelScale or 1) * 100),
+        "%",
+        function(value)
+            visuals:SetLabelScale(value / 100)
+        end
     )
 
-    self:CreateToggle(left, "Show distance", true)
-    self:CreateToggle(left, "Hide when aiming", false)
+    self:CreateToggle(
+        left,
+        "Show distance",
+        visuals.ShowDistance ~= false,
+        function(on)
+            visuals:SetShowDistance(on)
+        end
+    )
+
+    self:CreateToggle(
+        left,
+        "Hide when aiming",
+        visuals.HideWhenAiming == true,
+        function(on)
+            visuals:SetHideWhenAiming(on)
+        end
+    )
 
     self:CreateSection(right, "Performance / ประสิทธิภาพ")
 
@@ -1986,8 +2016,39 @@ function UI:BuildSettingsPage()
 
     self:CreateSection(right, "Interface")
 
-    self:CreateToggle(right, "Blur background", false)
-    self:CreateToggle(right, "Animations", true)
+    self:CreateToggle(
+        right,
+        "Blur background",
+        self.BlurEnabled == true,
+        function(on)
+            self.BlurEnabled = on == true
+
+            local lighting = game:GetService("Lighting")
+            local blur =
+                lighting:FindFirstChild("MazxhubUIBlur")
+
+            if self.BlurEnabled then
+                if not blur then
+                    blur = Instance.new("BlurEffect")
+                    blur.Name = "MazxhubUIBlur"
+                    blur.Size = 12
+                    blur.Parent = lighting
+                end
+                blur.Enabled = true
+            elseif blur then
+                blur:Destroy()
+            end
+        end
+    )
+
+    self:CreateToggle(
+        right,
+        "Animations",
+        self.AnimationsEnabled ~= false,
+        function(on)
+            self.AnimationsEnabled = on == true
+        end
+    )
 
     self:CreateSlider(
         right,
@@ -3486,6 +3547,13 @@ function UI:Start()
 end
 
 function UI:Stop()
+    local blur =
+        game:GetService("Lighting"):FindFirstChild("MazxhubUIBlur")
+    if blur then
+        blur:Destroy()
+    end
+    self.BlurEnabled = false
+
     if self.Ctx then
         self.Ctx:RemoveJob("UIStatus")
     end

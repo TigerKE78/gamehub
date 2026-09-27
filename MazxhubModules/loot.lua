@@ -12,6 +12,8 @@ local Loot = {
     HeldPrompt = nil,
     PromptUntil = 0,
     Collected = setmetatable({}, { __mode = "k" }),
+    Records = setmetatable({}, { __mode = "k" }),
+    Radius = 250,
     Status = "Loot ready",
 }
 
@@ -113,39 +115,130 @@ function Loot:PromptIsNPC(prompt)
     return false
 end
 
+function Loot:Candidate(prompt)
+    if not prompt
+        or not prompt.Parent
+        or not prompt.Enabled
+        or not prompt:IsDescendantOf(workspace)
+        or self:PromptIsNPC(prompt) then
+        return nil
+    end
+
+    local action =
+        tostring(prompt.ActionText or "")
+        :lower()
+        :match("^%s*(.-)%s*$")
+
+    local claim =
+        action == "claim"
+        or action == "collect"
+        or action == "pick up"
+        or action == "pickup"
+        or action == "เก็บ"
+        or action == "เก็บของ"
+
+    local open =
+        action == "open"
+        or action == "เปิด"
+
+    if not claim and not open then
+        return nil
+    end
+
+    local chest =
+        tostring(prompt.ObjectText or "")
+        :lower()
+        :find("chest", 1, true) ~= nil
+
+    local node = prompt.Parent
+
+    while node and node ~= workspace do
+        local name = node.Name:lower()
+
+        if name:find("chest", 1, true)
+            or name:find("กล่อง", 1, true)
+            or name:find("หีบ", 1, true) then
+            chest = true
+        end
+
+        node = node.Parent
+    end
+
+    if open and not chest then
+        return nil
+    end
+
+    local position = self:PromptPosition(prompt)
+    if not position or not self.Origin then
+        return nil
+    end
+
+    if (position - self.Origin).Magnitude
+        > (tonumber(self.Radius) or 250) then
+        return nil
+    end
+
+    if prompt.MaxActivationDistance <= 0
+        or prompt.HoldDuration > 5 then
+        return nil
+    end
+
+    return {
+        Prompt = prompt,
+        Position = position,
+        Kind = claim and "claim" or "open",
+    }
+end
+
 function Loot:NearestPrompt(root)
     if not root or not self.Origin then
         return nil
     end
 
+    local now = os.clock()
     local best
     local bestPosition
-    local bestDistance
+    local bestScore
 
     for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt")
-            and prompt.Enabled
-            and not self.Collected[prompt]
-            and not self:PromptIsNPC(prompt) then
+            and not self.Collected[prompt] then
 
-            local position =
-                self:PromptPosition(prompt)
+            local candidate = self:Candidate(prompt)
 
-            if position
-                and (
-                    position - self.Origin
-                ).Magnitude <= 90 then
+            if candidate then
+                local record =
+                    self.Records[prompt]
+                    or {
+                        Attempts = 0,
+                        NextAt = 0,
+                        Kind = candidate.Kind,
+                    }
 
-                local distance =
-                    (
-                        position - root.Position
-                    ).Magnitude
+                self.Records[prompt] = record
 
-                if not bestDistance
-                    or distance < bestDistance then
-                    best = prompt
-                    bestPosition = position
-                    bestDistance = distance
+                if record.Attempts < 6
+                    and now >= (record.NextAt or 0) then
+
+                    local distance =
+                        (
+                            candidate.Position
+                            - root.Position
+                        ).Magnitude
+
+                    local score =
+                        distance
+                        + (
+                            candidate.Kind == "claim"
+                            and 500
+                            or 0
+                        )
+
+                    if not bestScore or score < bestScore then
+                        best = prompt
+                        bestPosition = candidate.Position
+                        bestScore = score
+                    end
                 end
             end
         end
@@ -237,9 +330,11 @@ function Loot:BeginCollect(origin)
 
     self.Busy = true
     self.Origin = origin
-    self.CollectUntil = os.clock() + 30
+    self.CollectUntil = os.clock() + 45
     self.LastFoundAt = os.clock()
     self.Collected =
+        setmetatable({}, { __mode = "k" })
+    self.Records =
         setmetatable({}, { __mode = "k" })
 
     self:PauseFarm()
@@ -309,7 +404,20 @@ function Loot:CollectStep()
         local prompt = self:FinishPrompt()
 
         if prompt then
-            self.Collected[prompt] = true
+            local record =
+                self.Records[prompt]
+                or { Attempts = 0, NextAt = 0 }
+
+            record.Attempts += 1
+            record.NextAt = now + 0.55
+            self.Records[prompt] = record
+
+            if not prompt.Parent
+                or not prompt.Enabled
+                or record.Attempts >= 6 then
+                self.Collected[prompt] = true
+            end
+
             self.LastFoundAt = now
         end
 
@@ -320,6 +428,12 @@ function Loot:CollectStep()
         self:NearestPrompt(root)
 
     if prompt and position then
+        local record =
+            self.Records[prompt]
+            or { Attempts = 0, NextAt = 0 }
+
+        self.Records[prompt] = record
+
         teleport(self):Go(
             CFrame.new(
                 position
@@ -384,6 +498,8 @@ function Loot:Reset()
 
     self.Origin = nil
     self.Collected =
+        setmetatable({}, { __mode = "k" })
+    self.Records =
         setmetatable({}, { __mode = "k" })
 end
 

@@ -16,7 +16,7 @@ local Combat = {
     Driver = 1,
     PreferredDriver = nil,
     DriverHasDamage = false,
-    AdaptiveInterval = 0.06,
+    AdaptiveInterval = 0.04,
     NoDamageAttempts = 0,
     State = "idle",
     Connections = {},
@@ -147,7 +147,7 @@ function Combat:SelectHotbarSlot(slot)
     f._lastHotbarSelection = slot
     f._lastHotbarCharacter = char
     f._lastItemEquipAt = now
-    self.EquipReadyAt = now + 0.2
+    self.EquipReadyAt = now + 0.08
 
     return false
 end
@@ -183,13 +183,13 @@ function Combat:EquipSelectedWeapon()
         end
 
         self:ReleaseAttack()
-        self.EquipRetryAt = now + 0.5
+        self.EquipRetryAt = now + 0.25
 
         local ok = pcall(function()
             hum:EquipTool(tool)
         end)
 
-        self.EquipReadyAt = now + (ok and 0.2 or 1)
+        self.EquipReadyAt = now + (ok and 0.08 or 0.5)
         return tool, false
     end
 
@@ -407,8 +407,8 @@ end
 
 function Combat:ResetProgress()
     local f = farm(self)
-    -- FastAttack ใช้ Signal เป็นหลัก เพื่อไม่แย่งเมาส์กับการคลิก UI/จุดอื่นในเกม.
-    self.Driver = f.FastAttack and 3 or (self.PreferredDriver or 1)
+    -- FastAttack ของเกมนี้ตอบสนองกับ M1 input ได้สม่ำเสมอกว่า Tool:Activate().
+    self.Driver = f.FastAttack and 1 or (self.PreferredDriver or 1)
     self.DriverHasDamage = false
     self.LastHealth = nil
     self.AdaptiveInterval =
@@ -425,37 +425,14 @@ function Combat:Dispatch(tool)
         return false
     end
 
-    local driver = self.Focused == false and 3 or self.Driver
+    local driver = self.Driver
 
-    -- ระหว่าง FastAttack ให้ลอง Combat_Service ก่อนเสมอ
-    -- เพื่อให้ผู้เล่นคลิก UI/หน้าจอส่วนอื่นได้โดย Auto Attack ไม่หยุด.
-    if f.FastAttack or driver == 3 then
-        local signal = getSignal(self)
-
-        if signal then
-            local ok = pcall(function()
-                signal:FireServer(
-                    "Combat_Service",
-                    "Combat",
-                    1,
-                    false,
-                    0.13,
-                    false,
-                    nil
-                )
-            end)
-
-            if ok then
-                return true
-            end
-        end
-
-        -- Signal ใช้ไม่ได้: fallback ไป Tool ก่อน แล้วค่อย Mouse.
-        if tool and tool.Parent == self.Ctx.Player.Character then
-            driver = 2
-        else
-            driver = 1
-        end
+    if f.FastAttack then
+        driver = 1
+    elseif tool and tool.Parent == self.Ctx.Player.Character then
+        driver = 2
+    else
+        driver = 1
     end
 
     if driver == 1 then
@@ -510,7 +487,7 @@ function Combat:Dispatch(tool)
             tool:Activate()
         end)
 
-        task.delay(0.015, function()
+        task.delay(f.FastAttack and 0.006 or 0.015, function()
             if self.Held == held then
                 self:ReleaseAttack()
             end
@@ -794,7 +771,7 @@ function Combat:Step()
         or 0.06
 
     self.NextAttackAt =
-        now + math.clamp(interval, 0.01, 0.2)
+        now + math.clamp(interval, 0.02, 0.2)
 end
 
 function Combat:Init(ctx)

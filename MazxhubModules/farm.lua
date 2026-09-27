@@ -20,7 +20,7 @@ local Farm = {
     PlayerHitboxTest = false,
     QuestKills = 0,
 
-    AttackInterval = 0.06,
+    AttackInterval = 0.04,
     FastAttack = true,
     AdaptiveFastAttack = false,
     BypassComboGate = true,

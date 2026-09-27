@@ -695,6 +695,32 @@ function World:SetThunder(on)
 
     if mode.Enabled == on then return end
 
+    local f = self.Ctx.Modules.Farm
+    local quest = self.Ctx.Modules.Quest
+    local combat = self.Ctx.Modules.Combat
+
+    if on then
+        if quest and quest.Active then
+            quest:StopAll(nil)
+        end
+
+        if f and f.Enabled then
+            f:Stop()
+        end
+
+        if f then
+            f._storyBusy = true
+        end
+
+        if combat and combat.Release then
+            pcall(function()
+                combat:Release()
+            end)
+        end
+    elseif f then
+        f._storyBusy = false
+    end
+
     mode.Enabled = on
     mode.Phase = "trainer"
     mode.NextAt = 0

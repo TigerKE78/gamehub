@@ -19,6 +19,11 @@ local Dungeon = {
     NextSkipAt = 0,
     KillAuraNextAt = 0,
     Prime = setmetatable({}, { __mode = "k" }),
+    RootIndex = nil,
+    RootAdded = nil,
+    RootRemoved = nil,
+    CachedCandidate = nil,
+    NextFindAt = 0,
 }
 
 local function farm(self)
@@ -52,28 +57,84 @@ function Dungeon:ValidTarget(model)
     return hum ~= nil and hum.Health > 0 and root ~= nil
 end
 
-function Dungeon:FindTarget()
-    local folder = self:ActiveFolder()
-    local char = self.Ctx.Player.Character
-    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
-    if not folder or not myRoot then return nil end
-    local radius = math.max(1, tonumber(self.Radius) or 300)
-    local best, bestDistance = nil, radius
-    for _, hum in ipairs(folder:GetDescendants()) do
-        if hum:IsA("Humanoid") and hum.Health > 0 then
-            local model = hum.Parent
-            while model and model ~= folder and not model:IsA("Model") do
-                model = model.Parent
-            end
-            if self:ValidTarget(model) then
-                local root = self:TargetRoot(model)
-                local distance = root and (root.Position - myRoot.Position).Magnitude or math.huge
-                if distance <= bestDistance then
-                    best, bestDistance = model, distance
-                end
-            end
+function Dungeon:StopTargetIndex()
+    if self.RootAdded then
+        self.RootAdded:Disconnect()
+        self.RootAdded = nil
+    end
+    if self.RootRemoved then
+        self.RootRemoved:Disconnect()
+        self.RootRemoved = nil
+    end
+
+    self.RootIndex = nil
+    self.CachedCandidate = nil
+    self.NextFindAt = 0
+end
+
+function Dungeon:EnsureTargetIndex()
+    if self.RootIndex then return end
+
+    local roots = setmetatable({}, { __mode = "k" })
+    self.RootIndex = roots
+
+    local function addRoot(part)
+        if part:IsA("BasePart") and part.Name == "HumanoidRootPart" then
+            roots[part] = true
         end
     end
+
+    for _, part in ipairs(workspace:GetDescendants()) do
+        addRoot(part)
+    end
+
+    self.RootAdded = workspace.DescendantAdded:Connect(addRoot)
+    self.RootRemoved = workspace.DescendantRemoving:Connect(function(part)
+        roots[part] = nil
+    end)
+end
+
+function Dungeon:FindTarget()
+    local now = os.clock()
+
+    if now < (self.NextFindAt or 0) then
+        return self:ValidTarget(self.CachedCandidate)
+            and self.CachedCandidate
+            or nil
+    end
+
+    self.NextFindAt = now + 0.2
+
+    local char = self.Ctx.Player.Character
+    local myRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if not myRoot then
+        self.CachedCandidate = nil
+        return nil
+    end
+
+    self:EnsureTargetIndex()
+
+    local radius = math.max(1, tonumber(self.Radius) or 300)
+    local best, bestDistance = nil, radius
+
+    for root in pairs(self.RootIndex) do
+        if root and root.Parent then
+            local distance = (root.Position - myRoot.Position).Magnitude
+
+            if distance <= bestDistance then
+                local model = root:FindFirstAncestorOfClass("Model")
+
+                if self:ValidTarget(model) then
+                    best = model
+                    bestDistance = distance
+                end
+            end
+        else
+            self.RootIndex[root] = nil
+        end
+    end
+
+    self.CachedCandidate = best
     return best
 end
 
@@ -118,6 +179,7 @@ function Dungeon:SetEnabled(on)
         self.ApproachReadyAt = 0
         self.NextTargetAt = 0
         self.Prime = setmetatable({}, { __mode = "k" })
+        self:StopTargetIndex()
         if f.ExternalMode == "Dungeon" then
             f:Stop()
             f:ClearExternalMode()
@@ -187,7 +249,7 @@ function Dungeon:SetUnlockEnabled(on)
 end
 
 function Dungeon:StepAutoSkip()
-    if not self.Enabled or not self.AutoSkip then return end
+    if not self.AutoSkip then return end
     local now = os.clock()
     if now < self.NextSkipAt then return end
     local f = farm(self)
@@ -203,7 +265,6 @@ end
 function Dungeon:StepKillAura()
     if not self.Enabled or not self.KillAura then return end
     local f = farm(self)
-    if f.FastAttack then return end
     local c = combat(self)
     if not c or not c:CombatReady() then return end
     local target = self.Current or f._target
@@ -241,6 +302,7 @@ function Dungeon:Stop()
     self.AutoSkip = false
     self.KillAura = false
     self:SetEnabled(false)
+    self:StopTargetIndex()
 end
 
 return Dungeon

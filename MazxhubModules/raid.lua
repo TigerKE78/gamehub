@@ -11,6 +11,7 @@ local Raid = {
     HeldPrompt = nil,
     PromptUntil = 0,
     Collected = setmetatable({}, { __mode = "k" }),
+    LootRecords = setmetatable({}, { __mode = "k" }),
     StatusText = "Raid Chest • OFF",
     Status = "Raid Chest • OFF",
     OnStatus = nil,
@@ -78,6 +79,11 @@ function Raid:NearestPrompt(root, collect)
     for _, prompt in ipairs(workspace:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") and prompt.Enabled and not self.Collected[prompt]
             and not self:PromptIsNpc(prompt) then
+            local record = self.LootRecords[prompt]
+            if collect and record and os.clock() < (record.NextAt or 0) then
+                continue
+            end
+
             local pos = self:PromptPosition(prompt)
             if pos then
                 local fromOrigin = self.Origin and (pos - self.Origin).Magnitude or math.huge
@@ -117,6 +123,7 @@ function Raid:Advance(delaySeconds)
     self:FinishPrompt()
     self.SeenCount = 0
     self.Collected = setmetatable({}, { __mode = "k" })
+    self.LootRecords = setmetatable({}, { __mode = "k" })
     local points = self:Points()
     if #points > 0 then self:SetPoint((self.PointIndex % #points) + 1) end
     self.Phase = "checkMove"
@@ -139,11 +146,18 @@ function Raid:SetEnabled(on)
         self.NextAt = 0
         self.SeenCount = 0
         self.Collected = setmetatable({}, { __mode = "k" })
+        self.LootRecords = setmetatable({}, { __mode = "k" })
         self:SetStatus("Raid Chest • ON")
     else
         self.Enabled = false
         self:FinishPrompt()
-        if f.Enabled and f.Mode == "RaidChest" then f:Stop() end
+        if f.Enabled
+            and (
+                f.Mode == "RaidChest"
+                or f.MobName == self.MobKey
+            ) then
+            f:Stop()
+        end
         self.Phase = "idle"
         self:SetStatus("Raid Chest • OFF")
     end
@@ -156,10 +170,29 @@ function Raid:Step()
     if self.HeldPrompt then
         if now < self.PromptUntil then return end
         local finished = self:FinishPrompt()
+
         if finished then
-            self.Collected[finished] = true
             self.LastLootAt = now
+
+            if self.Phase == "collect" then
+                local record =
+                    self.LootRecords[finished]
+                    or { Attempts = 0, NextAt = 0 }
+
+                record.Attempts += 1
+                record.NextAt = now + 0.45
+                self.LootRecords[finished] = record
+
+                if not finished.Parent
+                    or not finished.Enabled
+                    or record.Attempts >= 6 then
+                    self.Collected[finished] = true
+                end
+            else
+                self.Collected[finished] = true
+            end
         end
+
         self.NextAt = now + 0.15
         return
     end
