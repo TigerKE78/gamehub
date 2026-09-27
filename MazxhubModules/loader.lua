@@ -21,11 +21,21 @@ local BOOT_RETRIES = 3
 local BOOT_RETRY_DELAY = 0.35
 
 local MODULES = {
-    { Key = "Farm",   File = "farm.lua" },
-    { Key = "Boss",   File = "boss.lua" },
-    { Key = "Combat", File = "combat.lua" },
-    { Key = "Skill",  File = "skill.lua" },
-    { Key = "UI",     File = "ui.lua" },
+    { Key = "Farm",     File = "farm.lua" },
+    { Key = "Boss",     File = "boss.lua" },
+    { Key = "Combat",   File = "combat.lua" },
+    { Key = "Skill",    File = "skill.lua" },
+    { Key = "Player",   File = "player.lua" },
+    { Key = "Teleport", File = "teleport.lua" },
+    { Key = "Quest",    File = "quest.lua" },
+    { Key = "Dungeon",  File = "dungeon.lua" },
+    { Key = "Raid",     File = "raid.lua" },
+    { Key = "Loot",     File = "loot.lua" },
+    { Key = "World",    File = "world.lua" },
+    { Key = "Visuals",  File = "visuals.lua" },
+    { Key = "Aimbot",   File = "aimbot.lua" },
+    { Key = "Settings", File = "settings.lua" },
+    { Key = "UI",       File = "ui.lua" },
 }
 
 -- Init ให้ dependency พร้อมก่อน:
@@ -35,6 +45,16 @@ local INIT_ORDER = {
     "Boss",
     "Combat",
     "Skill",
+    "Player",
+    "Teleport",
+    "Quest",
+    "Dungeon",
+    "Raid",
+    "Loot",
+    "World",
+    "Visuals",
+    "Aimbot",
+    "Settings",
     "UI",
 }
 
@@ -42,8 +62,18 @@ local INIT_ORDER = {
 -- UI ไว้ท้ายสุด เพื่อให้ปุ่มทั้งหมดเจอ module พร้อมแล้ว
 local START_ORDER = {
     "Farm",
+    "Boss",
     "Combat",
     "Skill",
+    "Player",
+    "Quest",
+    "Dungeon",
+    "Raid",
+    "Loot",
+    "World",
+    "Visuals",
+    "Aimbot",
+    "Settings",
     "UI",
 }
 

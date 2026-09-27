@@ -14,6 +14,12 @@ local Farm = {
     AttackRange = 12,
 
     AutoAttack = true,
+    AutoQuest = false,
+    AutoLoot = false,
+    PlayerAttackHitbox = 30,
+    PlayerHitboxTest = false,
+    QuestKills = 0,
+
     AttackInterval = 0.06,
     FastAttack = true,
     AdaptiveFastAttack = false,
@@ -23,12 +29,22 @@ local Farm = {
 
     _target = nil,
     _attackTarget = nil,
+    ExternalMode = nil,
+    ExternalResolver = nil,
+    ExternalMover = nil,
     _conn = nil,
     _cameraConn = nil,
     _skillHeld = false,
     _skillPoseUntil = 0,
     _lastRuntimeError = nil,
     _nextScanAt = 0,
+
+    _hitboxOriginals = setmetatable({}, { __mode = "k" }),
+    _hitboxTool = nil,
+    _hitboxNextAt = 0,
+    _mobHitboxOriginals = setmetatable({}, { __mode = "k" }),
+    _mobHitboxTarget = nil,
+    _mobHitboxNextAt = 0,
 
     Functions = {},
 }
@@ -1089,6 +1105,153 @@ local function farmWarpToBossSpawn(name)
     return true
 end
 
+local function farmRestorePlayerHitbox()
+    for part, original in pairs(Farm._hitboxOriginals) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = original.Size
+                part.Transparency = original.Transparency
+                part.CanCollide = original.CanCollide
+                part.Massless = original.Massless
+                part.CanTouch = original.CanTouch
+                part.CanQuery = original.CanQuery
+            end)
+        end
+    end
+
+    Farm._hitboxOriginals =
+        setmetatable({}, { __mode = "k" })
+
+    Farm._hitboxTool = nil
+    Farm._hitboxNextAt = 0
+end
+
+local function farmRestoreMobHitbox()
+    for part, original in pairs(Farm._mobHitboxOriginals) do
+        if part and part.Parent then
+            pcall(function()
+                part.Size = original.Size
+                part.Transparency = original.Transparency
+                part.CanCollide = original.CanCollide
+                part.Massless = original.Massless
+                part.CanTouch = original.CanTouch
+                part.CanQuery = original.CanQuery
+            end)
+        end
+    end
+
+    Farm._mobHitboxOriginals =
+        setmetatable({}, { __mode = "k" })
+
+    Farm._mobHitboxTarget = nil
+    Farm._mobHitboxNextAt = 0
+end
+
+local function farmRestoreHitbox()
+    farmRestorePlayerHitbox()
+    farmRestoreMobHitbox()
+end
+
+local function farmExtendPlayerHitbox()
+    local plr = player()
+    local char = plr and plr.Character
+    local tool = char and char:FindFirstChildOfClass("Tool")
+
+    if tool ~= Farm._hitboxTool then
+        farmRestorePlayerHitbox()
+        Farm._hitboxTool = tool
+    end
+
+    if not tool
+        or os.clock() < (Farm._hitboxNextAt or 0) then
+        return
+    end
+
+    Farm._hitboxNextAt = os.clock() + 0.15
+
+    local size =
+        math.clamp(
+            tonumber(Farm.PlayerAttackHitbox) or 30,
+            5,
+            100
+        )
+
+    for _, part in ipairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if not Farm._hitboxOriginals[part] then
+                Farm._hitboxOriginals[part] = {
+                    Size = part.Size,
+                    Transparency = part.Transparency,
+                    CanCollide = part.CanCollide,
+                    Massless = part.Massless,
+                    CanTouch = part.CanTouch,
+                    CanQuery = part.CanQuery,
+                }
+            end
+
+            pcall(function()
+                part.Size = Vector3.new(size, size, size)
+                part.Transparency =
+                    Farm.PlayerHitboxTest and 0.65 or 1
+                part.CanCollide = false
+                part.Massless = true
+                part.CanTouch = true
+                part.CanQuery = true
+            end)
+        end
+    end
+end
+
+local function farmExtendMobHitbox(mob)
+    if mob ~= Farm._mobHitboxTarget then
+        farmRestoreMobHitbox()
+        Farm._mobHitboxTarget = mob
+    end
+
+    if not mob
+        or not mob.Parent
+        or os.clock() < (Farm._mobHitboxNextAt or 0) then
+        return
+    end
+
+    Farm._mobHitboxNextAt = os.clock() + 0.15
+
+    local size =
+        math.clamp(
+            tonumber(Farm.Hitbox) or 18,
+            5,
+            40
+        )
+
+    local root =
+        mob:FindFirstChild("HumanoidRootPart", true)
+        or mob:FindFirstChild("UpperTorso", true)
+        or mob:FindFirstChild("Torso", true)
+        or (mob:IsA("Model") and mob.PrimaryPart)
+
+    if root and root:IsA("BasePart") then
+        if not Farm._mobHitboxOriginals[root] then
+            Farm._mobHitboxOriginals[root] = {
+                Size = root.Size,
+                Transparency = root.Transparency,
+                CanCollide = root.CanCollide,
+                Massless = root.Massless,
+                CanTouch = root.CanTouch,
+                CanQuery = root.CanQuery,
+            }
+        end
+
+        pcall(function()
+            root.Size = Vector3.new(size, size, size)
+            root.Transparency = 1
+            root.CanCollide = false
+            root.Massless = true
+            root.CanTouch = true
+            root.CanQuery = true
+        end)
+    end
+end
+
 local function farmTargetAlive(target)
     if not target or not target.Parent then
         return false
@@ -1104,6 +1267,16 @@ local function farmTargetAlive(target)
 end
 
 local function farmResolveTarget()
+    if Farm.ExternalResolver then
+        local ok, target = pcall(Farm.ExternalResolver)
+        if ok then
+            return target
+        end
+
+        Farm._lastRuntimeError = tostring(target)
+        return nil
+    end
+
     if Farm.BossEnabled then
         local bossModule =
             Farm.Ctx
@@ -1154,13 +1327,41 @@ function Farm:Step()
 
     local target = self._target
 
+    if self.PlayerHitboxTest then
+        farmExtendPlayerHitbox()
+    elseif not self.Enabled then
+        farmRestorePlayerHitbox()
+    end
+
     if not farmTargetAlive(target) then
+        farmRestoreMobHitbox()
         self._attackTarget = nil
         self.Ctx.State.Target = nil
         return
     end
 
-    if farmMoveUnder(target) then
+    farmExtendMobHitbox(target)
+
+    if self.AutoAttack or self.PlayerHitboxTest then
+        farmExtendPlayerHitbox()
+    else
+        farmRestorePlayerHitbox()
+    end
+
+    local moved
+
+    if self.ExternalMover then
+        local ok, result = pcall(self.ExternalMover, target)
+        moved = ok and result == true
+
+        if not ok then
+            self._lastRuntimeError = tostring(result)
+        end
+    else
+        moved = farmMoveUnder(target)
+    end
+
+    if moved then
         self._attackTarget = target
         self.Ctx.State.Target = target
     else
@@ -1185,6 +1386,7 @@ local function farmStop()
     Farm.Mode = nil
 
     FarmCharacterState:ReleaseHover()
+    farmRestoreHitbox()
     farmRestoreCharacter()
     farmRecoverCharacterControl()
 
@@ -1249,7 +1451,40 @@ local function farmSet(on, storyInternal)
     end
 end
 
+function Farm:ClearExternalMode()
+    self.ExternalMode = nil
+    self.ExternalResolver = nil
+    self.ExternalMover = nil
+    self._target = nil
+    self._attackTarget = nil
+    self._nextScanAt = 0
+
+    if self.Ctx then
+        self.Ctx.State.Target = nil
+    end
+end
+
+function Farm:SetExternalMode(name, resolver, mover)
+    self.ExternalMode = name
+    self.ExternalResolver = resolver
+    self.ExternalMover = mover
+    self.BossEnabled = false
+    self.Mode = name
+
+    self._target = nil
+    self._attackTarget = nil
+    self._nextScanAt = 0
+
+    self.Enabled = true
+    self.Ctx.State.FarmEnabled = true
+    self.Ctx.State.FarmMode = name
+    self.Ctx.State.Target = nil
+    self.Ctx:SetJobEnabled("Farm", true)
+end
+
 function Farm:StartMob(name)
+    self:ClearExternalMode()
+
     local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss
     if boss then boss.Enabled = false end
 
@@ -1262,6 +1497,7 @@ function Farm:StartMob(name)
 end
 
 function Farm:StartBoss(name)
+    self:ClearExternalMode()
     self.BossEnabled = true
     self.Mode = "Boss"
     self.BossName = name or self.BossName
@@ -1320,6 +1556,10 @@ function Farm:Init(ctx)
         return farmMoveUnder(target)
     end
 
+    self.RaidBoxPoints = RAID_BOX_POINTS
+    self.BossRegions = BOSS_REGIONS
+    self.BossWarpPositions = BOSS_WARP_POSITIONS
+
     self.Functions = {
         farmActiveFolder = farmActiveFolder,
         farmActiveFolderForName = farmActiveFolderForName,
@@ -1335,6 +1575,11 @@ function Farm:Init(ctx)
         farmKeepCharacterVisible = farmKeepCharacterVisible,
         farmRestoreCharacter = farmRestoreCharacter,
         farmRecoverCharacterControl = farmRecoverCharacterControl,
+        farmRestorePlayerHitbox = farmRestorePlayerHitbox,
+        farmRestoreMobHitbox = farmRestoreMobHitbox,
+        farmRestoreHitbox = farmRestoreHitbox,
+        farmExtendPlayerHitbox = farmExtendPlayerHitbox,
+        farmExtendMobHitbox = farmExtendMobHitbox,
         farmWarpToBossSpawn = farmWarpToBossSpawn,
         farmStart = farmStart,
         farmStop = farmStop,
@@ -1356,10 +1601,107 @@ function Farm:Init(ctx)
     self.farmKeepCharacterVisible = farmKeepCharacterVisible
     self.farmRestoreCharacter = farmRestoreCharacter
     self.farmRecoverCharacterControl = farmRecoverCharacterControl
+    self.farmRestorePlayerHitbox = farmRestorePlayerHitbox
+    self.farmRestoreMobHitbox = farmRestoreMobHitbox
+    self.farmRestoreHitbox = farmRestoreHitbox
+    self.farmExtendPlayerHitbox = farmExtendPlayerHitbox
+    self.farmExtendMobHitbox = farmExtendMobHitbox
     self.farmWarpToBossSpawn = farmWarpToBossSpawn
     self.farmStart = farmStart
     self.farmStop = farmStop
     self.farmSet = farmSet
+
+    self.GetSignal = function()
+        if self._cachedSignal and self._cachedSignal.Parent then
+            return self._cachedSignal
+        end
+
+        local now = os.clock()
+        if now < (self._signalRetryAt or 0) then
+            return nil
+        end
+
+        self._signalRetryAt = now + 0.5
+
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+        local ok, signal = pcall(function()
+            return replicatedStorage.Communication.ServerAndClient.Signals.SignalEvent.Event
+        end)
+
+        if not ok or not signal then
+            local communication =
+                replicatedStorage:FindFirstChild("Communication", true)
+            local signalEvent =
+                communication
+                and communication:FindFirstChild("SignalEvent", true)
+
+            signal = signalEvent and signalEvent:FindFirstChild("Event")
+        end
+
+        if signal and signal:IsA("RemoteEvent") then
+            self._cachedSignal = signal
+            return signal
+        end
+
+        return nil
+    end
+
+    self.InputBlocked = function()
+        local input = ctx.Services.UserInputService
+
+        if input:GetFocusedTextBox() then
+            return true
+        end
+
+        local ok, menuOpen = pcall(function()
+            return game:GetService("GuiService").MenuIsOpen
+        end)
+
+        return ok and menuOpen == true
+    end
+
+    self.CFrameOf = function(object)
+        if not object then return nil end
+
+        if object:IsA("Model") then
+            local root =
+                object:FindFirstChild("HumanoidRootPart")
+                or object.PrimaryPart
+                or object:FindFirstChildWhichIsA("BasePart", true)
+
+            return root and root.CFrame or object:GetPivot()
+        end
+
+        if object:IsA("BasePart") then
+            return object.CFrame
+        end
+
+        local part = object:FindFirstChildWhichIsA("BasePart", true)
+        return part and part.CFrame or nil
+    end
+
+    self.ReleaseInputs = function()
+        local combat = ctx.Modules.Combat
+        local skill = ctx.Modules.Skill
+
+        if combat and type(combat.Release) == "function" then
+            pcall(function() combat:Release() end)
+        end
+
+        if skill and type(skill.Release) == "function" then
+            pcall(function() skill:Release() end)
+        end
+    end
+end
+
+function Farm:SetPlayerHitboxTest(on)
+    self.PlayerHitboxTest = on == true
+    self._hitboxNextAt = 0
+
+    if not self.PlayerHitboxTest
+        and not self.Enabled then
+        farmRestorePlayerHitbox()
+    end
 end
 
 function Farm:Start()
@@ -1392,6 +1734,18 @@ function Farm:Start()
         end
     )
 
+    self.Ctx:RegisterJob(
+        "FarmHitbox",
+        0.05,
+        function()
+            if self.PlayerHitboxTest then
+                farmExtendPlayerHitbox()
+            elseif not self.Enabled then
+                farmRestorePlayerHitbox()
+            end
+        end
+    )
+
     self.Ctx:SetJobEnabled("Farm", false)
 end
 
@@ -1399,6 +1753,10 @@ function Farm:Stop()
     local wasBoss = self.Mode == "Boss"
     self.Enabled = false
     farmStop()
+
+    self.ExternalMode = nil
+    self.ExternalResolver = nil
+    self.ExternalMover = nil
 
     if wasBoss then
         local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss

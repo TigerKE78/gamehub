@@ -206,6 +206,10 @@ function Combat:CombatReady()
         return false, "ฟาร์มยังไม่เปิด"
     end
 
+    if f._questBusy or f._lootBusy then
+        return false, "รอเควส / เก็บของ"
+    end
+
     if inputBlocked(self) then
         return false, "รอปิดแชต / เมนูเกม"
     end
@@ -274,6 +278,119 @@ function Combat:RestoreSwingAnimations()
         end)
         self.HiddenTracks[track] = nil
     end
+end
+
+function Combat:IsBasicAttackTrack(track)
+    if not track then return false end
+
+    local animation = track.Animation
+    local raw =
+        tostring(track.Name or "")
+        .. " "
+        .. tostring(
+            animation
+            and animation.Name
+            or ""
+        )
+
+    local name =
+        raw:lower():gsub("[%s_%-]", "")
+
+    for _, stem in ipairs({
+        "m1",
+        "attack",
+        "basicattack",
+        "lightattack",
+        "slash",
+        "swing",
+        "punch",
+        "melee",
+    }) do
+        if name:find(stem, 1, true) then
+            return true
+        end
+    end
+
+    return false
+end
+
+function Combat:HideSwingAnimation(track)
+    local f = farm(self)
+
+    if not f.NoSwingAnimation
+        or f._skillHeld
+        or not self:IsBasicAttackTrack(track) then
+        return
+    end
+
+    pcall(function()
+        if self.HiddenTracks[track] == nil then
+            self.HiddenTracks[track] =
+                track.WeightTarget
+        end
+
+        track:AdjustWeight(0, 0)
+    end)
+end
+
+function Combat:RefreshHiddenTracks()
+    local f = farm(self)
+
+    if not f.NoSwingAnimation then
+        if next(self.HiddenTracks) then
+            self:RestoreSwingAnimations()
+        end
+        return
+    end
+
+    if f._skillHeld then return end
+
+    local hum = self.Humanoid
+    local animator =
+        hum
+        and hum:FindFirstChildOfClass("Animator")
+
+    if not animator then return end
+
+    for _, track in ipairs(
+        animator:GetPlayingAnimationTracks()
+    ) do
+        if self:IsBasicAttackTrack(track) then
+            self:HideSwingAnimation(track)
+        end
+    end
+
+    for track in pairs(self.HiddenTracks) do
+        pcall(function()
+            if not track.IsPlaying then
+                self.HiddenTracks[track] = nil
+            elseif track.WeightTarget > 0 then
+                track:AdjustWeight(0, 0)
+            end
+        end)
+    end
+end
+
+function Combat:WatchAnimations()
+    if self.AnimationConnection then
+        self.AnimationConnection:Disconnect()
+        self.AnimationConnection = nil
+    end
+
+    local hum = self.Humanoid
+    local animator =
+        hum
+        and (
+            hum:FindFirstChildOfClass("Animator")
+            or hum:WaitForChild("Animator", 1)
+        )
+
+    if not animator then return end
+
+    self.AnimationConnection =
+        animator.AnimationPlayed:Connect(function(track)
+            self:HideSwingAnimation(track)
+        end)
 end
 
 function Combat:Release()
@@ -582,6 +699,7 @@ function Combat:Step()
         self.Character = char
         self.Humanoid = hum
         self:WatchCharacterHealth()
+        self:WatchAnimations()
         self:BindGameComboGate()
         self:ResetProgress()
     end
@@ -595,34 +713,82 @@ function Combat:Step()
     local targetHum =
         target and target:FindFirstChildWhichIsA("Humanoid", true)
 
+    local serverConfirmedHit = false
+
     if targetHum then
         if self.Target ~= target then
             self.Target = target
             self.LastHealth = targetHum.Health
             self.PendingComboReset = false
             self.PendingComboTarget = nil
-        elseif self.LastHealth and targetHum.Health < self.LastHealth then
+        elseif self.LastHealth
+            and targetHum.Health < self.LastHealth then
+
+            serverConfirmedHit = true
             self.DriverHasDamage = true
             self.NoDamageAttempts = 0
             self:ConfirmComboDamage(target)
+
+            if f.FastAttack
+                and f.AdaptiveFastAttack then
+
+                self.AdaptiveInterval =
+                    math.max(
+                        0.01,
+                        (
+                            self.AdaptiveInterval
+                            or f.AttackInterval
+                            or 0.06
+                        ) - 0.001
+                    )
+            end
         end
+
         self.LastHealth = targetHum.Health
     end
 
-    if self:Dispatch(tool) then
+    self:RefreshHiddenTracks()
+
+    local dispatched = self:Dispatch(tool)
+
+    if dispatched then
         self.State = "attacking"
+
+        if f.FastAttack
+            and f.AdaptiveFastAttack
+            and not serverConfirmedHit then
+
+            self.NoDamageAttempts += 1
+
+            if self.NoDamageAttempts >= 6 then
+                self.AdaptiveInterval =
+                    math.min(
+                        0.08,
+                        (
+                            self.AdaptiveInterval
+                            or f.AttackInterval
+                            or 0.06
+                        ) + 0.002
+                    )
+
+                self.NoDamageAttempts = 0
+            end
+        end
     else
         self.State = "retry"
         self.NoDamageAttempts += 1
 
-        if not f.FastAttack and self.NoDamageAttempts >= 4 then
+        if not f.FastAttack
+            and self.NoDamageAttempts >= 4 then
+
             self.Driver = self.Driver % 3 + 1
             self.NoDamageAttempts = 0
         end
     end
 
     local interval =
-        f.AdaptiveFastAttack
+        f.FastAttack
+        and f.AdaptiveFastAttack
         and self.AdaptiveInterval
         or tonumber(f.AttackInterval)
         or 0.06
@@ -677,6 +843,11 @@ function Combat:Stop()
     if self.HealthConnection then
         self.HealthConnection:Disconnect()
         self.HealthConnection = nil
+    end
+
+    if self.AnimationConnection then
+        self.AnimationConnection:Disconnect()
+        self.AnimationConnection = nil
     end
 
     for _, connection in ipairs(self.Connections) do

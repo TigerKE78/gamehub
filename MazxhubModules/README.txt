@@ -77,3 +77,31 @@ Loader ใหม่
 
 สิ่งที่ยังไม่ได้ย้ายจาก hello.txt เพราะอยู่นอก 5 module แรก:
 Quest/Dungeon/Raid Chest/Betty/Kazu/Delivery/Pages/Bear/Thunder Training/Cup Game/Pushups/Player Mods/Invisible/Visuals/Teleport
+
+
+=== Full modular migration update ===
+ระบบที่แยกออกจาก hello.txt แล้ว:
+- Farm / Boss / Combat / Skill
+- Player: Speed, Jump, Fly, NoClip, FullBright, NoFog, Atmosphere, Invisible
+- Teleport: NPC / Player / Spawn / Sky / Ground
+- Quest: Kazu, Betty, MoldySugar delivery, Kona Lost Pages, Lucy/Tom Bear, Dungeon unlock
+- Dungeon: Auto Dungeon, Auto Skip, Kill Aura
+- Raid: Raid Chest saved-point scanner / fight / chest / collect
+- Loot: Boss loot collector
+- World: Cup2 ESP, Auto Pushups, Thunder Breathing
+- Visuals: Player/NPC/Boss ESP
+- Aimbot: FOV / Player+NPC / Skill aim
+- Settings: Low Graphics / FPS Boost
+- UI: Mob Farm, Boss Farm, Quests, Dungeon, Raids, Status, World, Teleport, Player, Combat, Visuals, Skill, Settings
+
+UI fixes:
+- responsive/compact layout
+- 2-column switching on narrow screens
+- dropdown overlay above scrolling frames
+- menu/tab switching closes dropdown
+- centered/clamped main window
+
+หมายเหตุ:
+- hello.txt ยังเก็บเป็น legacy reference/backup
+- module ใหม่แยก compile เพื่อลด Luau local-register pressure
+- ต้องทดสอบ behavior จริงในเกมหลัง upload โดยเฉพาะ quest/dungeon/raid state machines

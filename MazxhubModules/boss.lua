@@ -6,6 +6,8 @@ local Boss = {
     Selected = {},
     Order = {},
     Index = 1,
+    StatusStates = {},
+    StatusIndex = 1,
 
     Names = {
         "Zuko", "Gyorei", "Stone Trainee", "Thunder Trainee",
@@ -21,6 +23,231 @@ local Boss = {
 
 function Boss:Init(ctx)
     self.Ctx = ctx
+end
+
+function Boss:MarkDead(state, model)
+    if state.Model ~= model or state.DeadAt then
+        return
+    end
+
+    state.DeadAt = os.clock()
+    state.Alive = false
+end
+
+function Boss:UpdateStatus(name)
+    local farm = self.Ctx.Modules.Farm
+
+    local state = self.StatusStates[name]
+
+    if not state then
+        state = {}
+        self.StatusStates[name] = state
+    end
+
+    local folder =
+        farm.farmBossFolder
+        and farm.farmBossFolder(name)
+        or nil
+
+    state.FolderLoaded = folder ~= nil
+
+    local model =
+        farm.farmBossModel
+        and farm.farmBossModel(name, true)
+        or nil
+
+    local hum =
+        model
+        and model:FindFirstChildWhichIsA(
+            "Humanoid",
+            true
+        )
+
+    local alive =
+        model ~= nil
+        and (not hum or hum.Health > 0)
+
+    if alive then
+        if not state.Alive then
+            if state.DeadAt then
+                state.RespawnSeconds =
+                    os.clock() - state.DeadAt
+
+                state.Samples =
+                    (state.Samples or 0) + 1
+            end
+
+            state.LastSeenTime =
+                os.date("%H:%M:%S")
+
+            state.DeadAt = nil
+        end
+
+        state.Alive = true
+
+        if state.Model ~= model
+            or state.Humanoid ~= hum then
+
+            if state.DeathConnection then
+                state.DeathConnection:Disconnect()
+            end
+
+            state.Model = model
+            state.Humanoid = hum
+
+            state.DeathConnection =
+                hum
+                and hum.HealthChanged:Connect(
+                    function(health)
+                        if health <= 0 then
+                            self:MarkDead(
+                                state,
+                                model
+                            )
+                        end
+                    end
+                )
+                or nil
+        end
+    else
+        if state.Alive
+            and model == state.Model
+            and hum
+            and hum.Health <= 0 then
+
+            self:MarkDead(state, model)
+        end
+
+        state.Alive = false
+    end
+
+    state.DeadVisible =
+        model ~= nil
+        and hum ~= nil
+        and hum.Health <= 0
+
+    return state
+end
+
+function Boss:Duration(seconds)
+    seconds =
+        math.max(
+            0,
+            math.ceil(
+                tonumber(seconds) or 0
+            )
+        )
+
+    return string.format(
+        "%02d:%02d",
+        math.floor(seconds / 60),
+        seconds % 60
+    )
+end
+
+function Boss:DescribeStatus(state)
+    if not state then
+        return "กำลังตรวจสอบ...", "ยังไม่มีข้อมูล", "Gold"
+    end
+
+    local detail =
+        state.LastSeenTime
+        and (
+            "พบล่าสุด "
+            .. state.LastSeenTime
+        )
+        or "ยังไม่พบในเซสชันนี้"
+
+    if state.RespawnSeconds then
+        detail =
+            detail
+            .. " | รอบที่วัดได้ ~"
+            .. self:Duration(
+                state.RespawnSeconds
+            )
+    end
+
+    if state.Alive then
+        return "เกิดแล้ว • พร้อมฟาร์ม", detail, "Mint"
+    end
+
+    if not state.FolderLoaded then
+        return "ยังไม่พบข้อมูลโซน", detail, "Sub"
+    end
+
+    if state.DeadAt
+        and state.RespawnSeconds then
+
+        local remaining =
+            state.DeadAt
+            + state.RespawnSeconds
+            - os.clock()
+
+        if remaining > 0 then
+            return
+                "คาดว่าจะเกิดใน ~"
+                    .. self:Duration(remaining),
+                detail,
+                "Gold"
+        end
+
+        return
+            "ถึงเวลาประมาณแล้ว • รอตรวจพบบอส",
+            detail,
+            "Gold"
+    end
+
+    if state.DeadAt
+        or state.DeadVisible then
+
+        return
+            "ตายแล้ว • ยังไม่ทราบเวลาเกิด",
+            detail,
+            "Sub"
+    end
+
+    return
+        "ยังไม่พบ • ยังไม่ทราบเวลาเกิด",
+        detail,
+        "Sub"
+end
+
+function Boss:StatusStep()
+    if #self.Names == 0 then return end
+
+    self.StatusIndex =
+        math.clamp(
+            self.StatusIndex or 1,
+            1,
+            #self.Names
+        )
+
+    local name =
+        self.Names[self.StatusIndex]
+
+    self:UpdateStatus(name)
+
+    self.StatusIndex =
+        self.StatusIndex % #self.Names + 1
+end
+
+function Boss:Start()
+    self.Ctx:RegisterJob(
+        "BossStatus",
+        0.05,
+        function()
+            self:StatusStep()
+        end
+    )
+end
+
+function Boss:StopStatus()
+    for _, state in pairs(self.StatusStates) do
+        if state.DeathConnection then
+            state.DeathConnection:Disconnect()
+            state.DeathConnection = nil
+        end
+    end
 end
 
 function Boss:SetSelected(name, enabled)
@@ -94,6 +321,12 @@ function Boss:Stop()
         or self.Ctx.State.FarmMode == "Boss"
     ) then
         farm:Stop()
+    end
+
+    if self.Ctx
+        and self.Ctx.State
+        and self.Ctx.State.Running == false then
+        self:StopStatus()
     end
 end
 
