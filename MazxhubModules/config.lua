@@ -5,7 +5,7 @@ return {
     Version = "0.1.0",
 
     -- เปลี่ยนเป็น raw GitHub ของคุณก่อนใช้งาน loader แบบออนไลน์
-    BaseURL = "https://raw.githubusercontent.com/YOUR_NAME/YOUR_REPO/main/MazxhubModules/",
+    BaseURL = "https://raw.githubusercontent.com/TigerKE78/gamehub/master/MazxhubModules/",
 
     -- ตรวจว่า loader กำลังรันอยู่ในเกมที่รองรับหรือไม่
     -- Strict = false = ยังอนุญาตทุกเกมระหว่างพัฒนา
