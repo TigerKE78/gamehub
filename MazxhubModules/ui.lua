@@ -2101,6 +2101,11 @@ function UI:BuildQuestsPage()
             Title = "Quest 5 • Lucy / Tom / Bear Cub",
             Side = right,
         },
+        {
+            Name = "HunterExam",
+            Title = "สอบนักล่า",
+            Side = right,
+        },
     }
 
     self.QuestSetters = self.QuestSetters or {}

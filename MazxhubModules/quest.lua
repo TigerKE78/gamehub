@@ -250,6 +250,10 @@ function Quest:SetEnabled(name, on)
         q.Kills = 0
         q.TomRuns = 0
         q.Watch = nil
+    elseif name == "HunterExam" then
+        q.Stage = 1
+        q.Kills = 0
+        q.ManualReady = false
     end
 
     self:SetStatus(
