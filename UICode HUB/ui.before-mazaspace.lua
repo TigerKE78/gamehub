@@ -1,5 +1,5 @@
 -- MazxhubModules/ui.lua
--- MazaSpace: dark / soft-red presentation, original module callbacks preserved.
+-- Legacy-style Mazxhub UI rebuilt from hello.txt presentation layer.
 -- Backend actions are routed to modular Farm/Boss/Combat/Skill modules.
 
 local UI = {
@@ -15,18 +15,18 @@ local UI = {
 local TweenService = game:GetService("TweenService")
 
 local T = {
-    Bg = Color3.fromRGB(18, 18, 21),
-    Sidebar = Color3.fromRGB(19, 19, 22),
-    Card = Color3.fromRGB(25, 25, 29),
-    CardHover = Color3.fromRGB(37, 32, 37),
-    Stroke = Color3.fromRGB(54, 49, 55),
-    Track = Color3.fromRGB(33, 32, 37),
-    Text = Color3.fromRGB(239, 234, 237),
-    Sub = Color3.fromRGB(160, 153, 160),
-    Accent = Color3.fromRGB(235, 117, 130),
-    AccentSoft = Color3.fromRGB(47, 31, 37),
-    Ink = Color3.fromRGB(30, 16, 22),
-    Mint = Color3.fromRGB(235, 145, 155),
+    Bg = Color3.fromRGB(17, 22, 29),
+    Sidebar = Color3.fromRGB(20, 26, 34),
+    Card = Color3.fromRGB(27, 34, 44),
+    CardHover = Color3.fromRGB(35, 44, 55),
+    Stroke = Color3.fromRGB(54, 65, 78),
+    Track = Color3.fromRGB(32, 49, 65),
+    Text = Color3.fromRGB(220, 226, 233),
+    Sub = Color3.fromRGB(155, 168, 184),
+    Accent = Color3.fromRGB(137, 178, 207),
+    AccentSoft = Color3.fromRGB(41, 57, 72),
+    Ink = Color3.fromRGB(5, 22, 33),
+    Mint = Color3.fromRGB(140, 188, 167),
     Danger = Color3.fromRGB(190, 70, 80),
     Gold = Color3.fromRGB(198, 179, 134),
 }
@@ -49,16 +49,16 @@ local function new(className, props, parent)
 end
 
 local function corner(parent, radius)
-    local c = parent:FindFirstChildOfClass("UICorner") or new("UICorner", {}, parent)
-    c.CornerRadius = UDim.new(0, radius or 4)
-    return c
+    return new("UICorner", {
+        CornerRadius = UDim.new(0, radius or 10),
+    }, parent)
 end
 
 local function stroke(parent, color, thickness)
     return new("UIStroke", {
         Color = color or T.Stroke,
         Thickness = thickness or 1,
-        Transparency = 0.05,
+        Transparency = 0.4,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
     }, parent)
 end
@@ -94,60 +94,6 @@ local function tween(object, props)
     end
 
     TweenService:Create(object, TI, props):Play()
-end
-
-local IconPaths = {
-    M={{{3,21},{6,3},{12,12},{20,3},{17,21}},{{3,21},{8,21},{9,13},{12,17},{17,12}},{{7,3},{11,8}},{{17,21},{21,21}}},
-    Home={{{3,11},{12,3},{21,11},{21,21},{15,21},{15,14},{9,14},{9,21},{3,21},{3,11}}},
-    Main={{{4,3},{16,15}},{{3,3},{3,8},{13,18},{18,13},{8,3},{3,3}},{{15,16},{21,22}},{{3,21},{9,15}},{{15,9},{21,3}},{{17,3},{21,3},{21,7}}},
-    Farm={{{5,21},{19,3}},{{8,17},{3,13},{6,10},{11,13}},{{12,12},{8,8},{11,5},{15,8}},{{14,8},{16,2},{21,2},{21,7},{18,10}},{{10,16},{15,16},{19,12},{16,10}}},
-    Dungeon={{{3,21},{3,10},{7,10},{7,14},{10,14},{10,6},{14,6},{14,14},{17,14},{17,10},{21,10},{21,21},{3,21}},{{10,21},{10,17},{14,17},{14,21}},{{5,10},{5,5}},{{19,10},{19,5}}},
-    Visuals={{{2,12},{6,7},{12,5},{18,7},{22,12},{18,17},{12,19},{6,17},{2,12}}},
-    Player={{{5,22},{5,18},{7,15},{17,15},{19,18},{19,22}}},
-    Webhook={{{4,18},{6,15},{6,9},{8,5},{12,3},{16,5},{18,9},{18,15},{20,18},{4,18}},{{10,21},{14,21}}},
-    Config={{{9,2},{15,2},{16,6},{20,6},{22,11},{19,14},{20,18},{15,21},{12,18},{8,21},{4,18},{5,14},{2,11},{4,6},{8,6},{9,2}}},
-    Combat={{{12,1},{12,7}},{{12,17},{12,23}},{{1,12},{7,12}},{{17,12},{23,12}}},
-    Dialogue={{{3,3},{21,3},{21,18},{8,18},{3,22},{3,3}}},
-    Defense={{{12,2},{21,6},{20,14},{17,19},{12,22},{7,19},{4,14},{3,6},{12,2}}},
-    Training={{{2,8},{5,5},{9,9},{15,3},{19,7},{17,9},{21,13},{18,16},{14,12},{8,18},{4,14},{6,12},{2,8}}},
-    Instakill={{{14,2},{4,13},{10,13},{8,22},{21,9},{14,9},{14,2}}},
-    Lock={{{5,10},{19,10},{19,22},{5,22},{5,10}},{{8,10},{8,6},{10,3},{14,3},{16,6},{16,10}}},
-    Market={{{3,9},{5,3},{19,3},{21,9},{18,12},{15,9},{12,12},{9,9},{6,12},{3,9}},{{5,12},{5,21},{19,21},{19,12}},{{10,21},{10,16},{15,16},{15,21}}},
-    Location={{{12,23},{5,15},{3,10},{5,5},{9,2},{15,2},{19,5},{21,10},{19,15},{12,23}}},
-    Performance={{{3,19},{2,13},{4,7},{8,3},{16,3},{20,7},{22,13},{21,19}},{{12,15},{17,8}}},
-    Muzan={{{18,3},{12,4},{9,8},{9,13},{13,17},{18,17},{22,14},{20,19},{16,22},{10,22},{5,19},{2,14},{3,8},{7,3},{12,2}}},
-    Menu={{{2,4},{22,4},{22,20},{2,20},{2,4}},{{6,9},{7,9}},{{11,9},{12,9}},{{16,9},{18,9}},{{6,13},{7,13}},{{11,13},{12,13}},{{16,13},{18,13}},{{7,17},{17,17}}},
-    List={{{8,5},{22,5}},{{8,12},{22,12}},{{8,19},{22,19}},{{2,5},{3,5}},{{2,12},{3,12}},{{2,19},{3,19}}},
-    Folder={{{2,20},{2,4},{9,4},{12,7},{22,7},{22,20},{2,20}}},
-    Themes={{{4,15},{15,4},{20,9},{9,20},{4,15}},{{15,4},{18,1},{23,6},{20,9}},{{4,15},{2,22},{9,20}}},
-    Search={{{15,15},{21,21}}},
-    Chevron={{{5,8},{12,15},{19,8}}},
-    Move={{{12,2},{12,22}},{{2,12},{22,12}},{{8,6},{12,2},{16,6}},{{8,18},{12,22},{16,18}},{{6,8},{2,12},{6,16}},{{18,8},{22,12},{18,16}}},
-}
-local function icon(parent, name, position, size, color)
-    local canvas=new("Frame",{Name="Icon_"..name,BackgroundTransparency=1,Size=UDim2.fromOffset(size,size),Position=position},parent)
-    local ink=color or T.Accent
-    local function line(x1,y1,x2,y2)
-        local dx,dy=(x2-x1)*size/24,(y2-y1)*size/24
-        local segment=new("Frame",{AnchorPoint=Vector2.new(.5,.5),Position=UDim2.fromOffset((x1+x2)*size/48,(y1+y2)*size/48),
-            Size=UDim2.fromOffset(math.sqrt(dx*dx+dy*dy)+.5,1.6),Rotation=math.deg(math.atan2(dy,dx)),BackgroundColor3=ink,BorderSizePixel=0},canvas)
-        corner(segment,1)
-    end
-    local function ring(x,y,r)
-        for i=0,27 do
-            local a,b=i*math.pi/14,(i+1)*math.pi/14
-            line(x+math.cos(a)*r,y+math.sin(a)*r,x+math.cos(b)*r,y+math.sin(b)*r)
-        end
-    end
-    for _,path in ipairs(IconPaths[name] or IconPaths.List) do
-        for i=2,#path do line(path[i-1][1],path[i-1][2],path[i][1],path[i][2]) end
-    end
-    if name=="Search" then ring(10,10,6) end
-    if name=="Player" then ring(12,7,4) end
-    if name=="Visuals" or name=="Config" then ring(12,12,3.5) end
-    if name=="Combat" then ring(12,12,8.5) end
-    if name=="Location" then ring(12,10,3) end
-    return canvas
 end
 
 function UI:Connect(signal, callback)
@@ -241,10 +187,7 @@ function UI:CreateSection(parent, titleText, default, callback)
         BackgroundTransparency = 0.45,
         BorderSizePixel = 0,
     }, parent)
-    corner(frame, 3)
-    frame:SetAttribute("MazaSection", titleText)
-    frame.BackgroundColor3 = T.Card
-    frame.BackgroundTransparency = 0
+    corner(frame, 5)
 
     local title = label(
         frame,
@@ -264,19 +207,15 @@ function UI:CreateSection(parent, titleText, default, callback)
         AnchorPoint = Vector2.new(0, 0.5),
         Position = UDim2.new(0, 11, 0.5, 0),
     }, frame)
-    dot:Destroy()
-    icon(frame,"List",UDim2.fromOffset(7,9),17,T.Accent)
-    title.Position=UDim2.fromOffset(31,0)
-    title.Font=Enum.Font.Code
-    title.Size=UDim2.new(1,callback and -85 or -60,1,0)
+    corner(dot, 3)
 
     if not callback then
         return frame
     end
 
     local box = new("TextButton", {
-        Size = UDim2.fromOffset(34, 20),
-        Position = UDim2.new(1, -42, 0.5, -10),
+        Size = UDim2.fromOffset(42, 22),
+        Position = UDim2.new(1, -52, 0.5, -11),
         BackgroundColor3 = T.Track,
         BorderSizePixel = 0,
         Text = "",
@@ -285,8 +224,8 @@ function UI:CreateSection(parent, titleText, default, callback)
     corner(box, 11)
 
     local knob = new("Frame", {
-        Size = UDim2.fromOffset(14, 14),
-        Position = UDim2.new(0, 3, 0.5, -7),
+        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(0, 3, 0.5, -8),
         BackgroundColor3 = T.Text,
         BorderSizePixel = 0,
     }, box)
@@ -300,8 +239,8 @@ function UI:CreateSection(parent, titleText, default, callback)
         })
         tween(knob, {
             Position = on
-                and UDim2.new(1, -17, 0.5, -7)
-                or UDim2.new(0, 3, 0.5, -7),
+                and UDim2.new(1, -19, 0.5, -8)
+                or UDim2.new(0, 3, 0.5, -8),
         })
     end
 
@@ -336,9 +275,9 @@ end
 
 function UI:CreateToggle(parent, titleText, default, callback)
     local frame = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 26),
+        Size = UDim2.new(1, 0, 0, 32),
         BackgroundColor3 = T.Card,
-        BackgroundTransparency = 1,
+        BackgroundTransparency = 0.65,
         BorderSizePixel = 0,
     }, parent)
     corner(frame, 5)
@@ -354,8 +293,8 @@ function UI:CreateToggle(parent, titleText, default, callback)
     )
 
     local box = new("TextButton", {
-        Size = UDim2.fromOffset(34, 20),
-        Position = UDim2.new(1, -42, 0.5, -10),
+        Size = UDim2.fromOffset(42, 22),
+        Position = UDim2.new(1, -52, 0.5, -11),
         BackgroundColor3 = T.Track,
         BorderSizePixel = 0,
         Text = "",
@@ -364,8 +303,8 @@ function UI:CreateToggle(parent, titleText, default, callback)
     corner(box, 11)
 
     local knob = new("Frame", {
-        Size = UDim2.fromOffset(14, 14),
-        Position = UDim2.new(0, 3, 0.5, -7),
+        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(0, 3, 0.5, -8),
         BackgroundColor3 = T.Text,
         BorderSizePixel = 0,
     }, box)
@@ -379,8 +318,8 @@ function UI:CreateToggle(parent, titleText, default, callback)
         })
         tween(knob, {
             Position = on
-                and UDim2.new(1, -17, 0.5, -7)
-                or UDim2.new(0, 3, 0.5, -7),
+                and UDim2.new(1, -19, 0.5, -8)
+                or UDim2.new(0, 3, 0.5, -8),
         })
     end
 
@@ -442,7 +381,7 @@ end
 function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, callback)
     local hasDesc = type(desc) == "string" and desc ~= ""
     local frameHeight = hasDesc and 58 or 44
-    local trackY = hasDesc and 36 or 24
+    local trackY = hasDesc and 44 or 30
 
     local frame = new("Frame", {
         Size = UDim2.new(1, 0, 0, frameHeight),
@@ -483,7 +422,7 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
     end
 
     local track = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 17),
+        Size = UDim2.new(1, 0, 0, 6),
         Position = UDim2.fromOffset(0, trackY),
         BackgroundColor3 = T.Track,
         BorderSizePixel = 0,
@@ -505,18 +444,10 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
         BorderSizePixel = 0,
     }, track)
     corner(knob, 7)
-    knob.Visible=false
-    valueLabel.Parent=track
-    valueLabel.Position=UDim2.fromOffset(0,0)
-    valueLabel.Size=UDim2.fromScale(1,1)
-    valueLabel.TextXAlignment=Enum.TextXAlignment.Center
-    valueLabel.Font=Enum.Font.Code
-    valueLabel.ZIndex=3
-    stroke(track,T.Stroke,1)
 
     local hit = new("TextButton", {
         Size = UDim2.new(1, 0, 0, 26),
-        Position = UDim2.fromOffset(0, -4),
+        Position = UDim2.fromOffset(0, -10),
         BackgroundTransparency = 1,
         Text = "",
         AutoButtonColor = false,
@@ -552,8 +483,8 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
     end
 
     hit.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = input
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
             updateFromX(input.Position.X)
         end
     end)
@@ -562,7 +493,7 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
         self.Ctx.Services.UserInputService.InputChanged,
         function(input)
             if dragging
-                and (input.UserInputType == Enum.UserInputType.MouseMovement or input == dragging) then
+                and input.UserInputType == Enum.UserInputType.MouseMovement then
                 updateFromX(input.Position.X)
             end
         end
@@ -571,7 +502,7 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
     self:Connect(
         self.Ctx.Services.UserInputService.InputEnded,
         function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input == dragging then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = false
             end
         end
@@ -582,75 +513,172 @@ function UI:CreateSlider(parent, titleText, desc, min, max, default, suffix, cal
 end
 
 function UI:CreateDropdown(parent, titleText, desc, options, default, callback)
-    options=options or {}
-    local hasDesc=type(desc)=="string" and desc~=""
-    local y=hasDesc and 36 or 22
-    local frame=new("Frame",{Size=UDim2.new(1,0,0,y+29),BackgroundTransparency=1},parent)
-    label(frame,titleText,12,T.Text,Enum.Font.Code,nil,UDim2.new(1,0,0,18))
-    if hasDesc then label(frame,desc,10,T.Sub,Enum.Font.Gotham,UDim2.fromOffset(0,18),UDim2.new(1,0,0,16)) end
-    local selected=default or options[1]
-    local button=new("TextButton",{Size=UDim2.new(1,0,0,26),Position=UDim2.fromOffset(0,y),
-        BackgroundColor3=T.Card,BorderSizePixel=0,Text=tostring(selected or "---"),TextColor3=T.Text,
-        Font=Enum.Font.Code,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,AutoButtonColor=false},frame)
-    corner(button,3); stroke(button); pad(button,0,0,7,25)
-    local arrow=icon(button,"Chevron",UDim2.new(1,-15,0,5),14,T.Sub)
-    local listFrame
-    local function closeList()
-        if listFrame then listFrame:Destroy(); listFrame=nil end
-        arrow.Rotation=0
-        if self.ActiveDropdownClose==closeList then self.ActiveDropdownClose=nil end
+    local frame = new("Frame", {
+        Size = UDim2.new(1, 0, 0, desc ~= "" and 72 or 58),
+        BackgroundTransparency = 1,
+    }, parent)
+
+    label(
+        frame,
+        titleText,
+        11,
+        T.Text,
+        Enum.Font.GothamBold,
+        UDim2.new(),
+        UDim2.new(1, 0, 0, 16)
+    )
+
+    if desc ~= "" then
+        label(
+            frame,
+            desc,
+            10,
+            T.Sub,
+            Enum.Font.Gotham,
+            UDim2.fromOffset(0, 18),
+            UDim2.new(1, 0, 0, 14)
+        )
     end
+
+    local y = desc ~= "" and 36 or 22
+    local button = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 34),
+        Position = UDim2.fromOffset(0, y),
+        BackgroundColor3 = T.Card,
+        BorderSizePixel = 0,
+        Text = default or options[1] or "—",
+        TextColor3 = T.Text,
+        TextSize = 12,
+        Font = Enum.Font.Gotham,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false,
+        ZIndex = 8,
+    }, frame)
+    corner(button, 6)
+    stroke(button, T.Stroke, 1)
+    pad(button, 0, 0, 12, 12)
+
+    local arrow = label(
+        button,
+        "⌄",
+        12,
+        T.Sub,
+        Enum.Font.GothamBold,
+        UDim2.new(1, -24, 0, 0),
+        UDim2.fromOffset(20, 34)
+    )
+    arrow.TextXAlignment = Enum.TextXAlignment.Center
+    arrow.ZIndex = 9
+
+    local selected = button.Text
+    local listFrame
+
+    local function closeList()
+        if listFrame then
+            listFrame:Destroy()
+            listFrame = nil
+        end
+        if self.ActiveDropdownClose == closeList then
+            self.ActiveDropdownClose = nil
+        end
+    end
+
+    local function selectValue(value)
+        selected = value
+        button.Text = value
+        closeList()
+        if callback then
+            callback(value)
+        end
+    end
+
     local function openList()
         self:CloseDropdown()
-        local mainPos,mainSize=self.Main.AbsolutePosition,self.Main.AbsoluteSize
-        local pos=button.AbsolutePosition
-        local height=math.min(238,math.max(90,#options*28+44),math.max(70,mainSize.Y-16))
-        local width=math.min(button.AbsoluteSize.X,mainSize.X-16)
-        local x=math.clamp(pos.X-mainPos.X,8,math.max(8,mainSize.X-width-8))
-        local yPos=pos.Y-mainPos.Y+button.AbsoluteSize.Y+3
-        if yPos+height>mainSize.Y-8 then yPos=pos.Y-mainPos.Y-height-3 end
-        yPos=math.clamp(yPos,8,math.max(8,mainSize.Y-height-8))
-        listFrame=new("Frame",{Name="DropdownOverlay",Size=UDim2.fromOffset(width,height),Position=UDim2.fromOffset(x,yPos),
-            BackgroundColor3=T.Sidebar,BorderSizePixel=0,ZIndex=100},self.Main)
-        corner(listFrame,4); stroke(listFrame)
-        local search=new("TextBox",{Size=UDim2.new(1,-12,0,28),Position=UDim2.fromOffset(6,6),Text="",PlaceholderText="Search...",
-            ClearTextOnFocus=false,BackgroundColor3=T.Card,BorderSizePixel=0,TextColor3=T.Text,PlaceholderColor3=T.Sub,
-            Font=Enum.Font.Code,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,ZIndex=101},listFrame)
-        corner(search,3); pad(search,0,0,7,7)
-        local scroll=new("ScrollingFrame",{Size=UDim2.new(1,-10,1,-42),Position=UDim2.fromOffset(5,38),BackgroundTransparency=1,
-            BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=3,ScrollBarImageColor3=T.Accent,ZIndex=101},listFrame)
-        new("UIListLayout",{SortOrder=Enum.SortOrder.LayoutOrder,Padding=UDim.new(0,1)},scroll)
-        local entries={}
-        for i,value in ipairs(options) do
-            local item=new("TextButton",{Size=UDim2.new(1,-4,0,26),LayoutOrder=i,BackgroundColor3=T.AccentSoft,
-                BackgroundTransparency=value==selected and 0 or 1,BorderSizePixel=0,Text=tostring(value),TextColor3=value==selected and T.Accent or T.Sub,
-                Font=Enum.Font.Code,TextSize=12,TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd,ZIndex=102},scroll)
-            pad(item,0,0,6,6)
-            table.insert(entries,{Value=value,Button=item})
+
+        local count = math.max(#options, 1)
+        local height = math.min(count * 30 + 8, 188)
+        local mainPos = self.Main.AbsolutePosition
+        local buttonPos = button.AbsolutePosition
+        local relativeX = buttonPos.X - mainPos.X
+        local relativeY = buttonPos.Y - mainPos.Y + button.AbsoluteSize.Y + 4
+
+        if relativeY + height > self.Main.AbsoluteSize.Y - 8 then
+            relativeY = buttonPos.Y - mainPos.Y - height - 4
+        end
+
+        listFrame = new("Frame", {
+            Name = "DropdownOverlay",
+            Size = UDim2.fromOffset(button.AbsoluteSize.X, height),
+            Position = UDim2.fromOffset(relativeX, relativeY),
+            BackgroundColor3 = T.Sidebar,
+            BorderSizePixel = 0,
+            ZIndex = 100,
+            ClipsDescendants = false,
+        }, self.Main)
+        corner(listFrame, 6)
+        stroke(listFrame, T.Stroke, 1)
+
+        local scroll = new("ScrollingFrame", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            CanvasSize = UDim2.new(),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = T.Accent,
+            ZIndex = 101,
+            ClipsDescendants = true,
+        }, listFrame)
+
+        new("UIListLayout", {
+            Padding = UDim.new(0, 2),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }, scroll)
+        pad(scroll, 4, 4, 4, 4)
+
+        for _, option in ipairs(options) do
+            local value = option
+            local item = new("TextButton", {
+                Size = UDim2.new(1, -8, 0, 28),
+                BackgroundColor3 = T.Card,
+                BackgroundTransparency = value == selected and 0 or 0.5,
+                BorderSizePixel = 0,
+                Text = value,
+                TextColor3 = value == selected and T.Accent or T.Text,
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 102,
+                AutoButtonColor = false,
+            }, scroll)
+            corner(item, 5)
+            pad(item, 0, 0, 9, 9)
+
             item.Activated:Connect(function()
-                selected=value; button.Text=tostring(value); closeList()
-                if callback then callback(value) end
+                selectValue(value)
             end)
         end
-        local empty=label(scroll,"No results",12,T.Sub,Enum.Font.Code,nil,UDim2.new(1,0,0,26))
-        empty.ZIndex=102; empty.LayoutOrder=#options+1; empty.Visible=#options==0
-        search:GetPropertyChangedSignal("Text"):Connect(function()
-            local count=0; local query=search.Text:lower()
-            for _,entry in ipairs(entries) do
-                local matches=tostring(entry.Value):lower():find(query,1,true)~=nil
-                entry.Button.Visible=matches
-                if matches then count=count+1 end
-            end
-            empty.Visible=count==0; scroll.CanvasPosition=Vector2.zero
-        end)
-        self.ActiveDropdownClose=closeList; arrow.Rotation=180
-        search:CaptureFocus()
+
+        self.ActiveDropdownClose = closeList
     end
-    button.Activated:Connect(function() if listFrame then closeList() else openList() end end)
-    return frame,function() return selected end,function(value,fire)
-        selected=value; button.Text=tostring(value or "---")
-        if fire and callback then callback(value) end
-    end,closeList
+
+    button.Activated:Connect(function()
+        if listFrame then
+            closeList()
+        else
+            openList()
+        end
+    end)
+
+    return frame, function()
+        return selected
+    end, function(value, fire)
+        selected = value
+        button.Text = value
+        if fire and callback then
+            callback(value)
+        end
+    end, closeList
 end
 
 function UI:CreateSearchRow(parent, placeholder, onSearch)
@@ -719,7 +747,7 @@ function UI:CreatePage(name)
                 0
             ),
             BackgroundColor3 = T.Card,
-            BackgroundTransparency = 1,
+            BackgroundTransparency = 0.15,
             BorderSizePixel = 0,
             ScrollBarThickness = 3,
             ScrollBarImageColor3 = T.AccentSoft,
@@ -728,7 +756,7 @@ function UI:CreatePage(name)
             ScrollingDirection = Enum.ScrollingDirection.Y,
         }, page)
         corner(column, 7)
-        -- Card outlines are added per section.
+        stroke(column, T.Stroke, 1)
         new("UIListLayout", {
             Padding = UDim.new(0, 6),
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -2711,71 +2739,6 @@ function UI:RefreshStatus()
     end
 end
 
-function UI:GroupSections()
-    self.Cards={}
-    for _,page in pairs(self.Pages) do
-        for _,column in ipairs({page.Left,page.Right}) do
-            local children=column:GetChildren()
-            local current
-            local order=0
-            for _,child in ipairs(children) do
-                if child:IsA("GuiObject") then
-                    local title=child:GetAttribute("MazaSection")
-                    if title or not current then
-                        order=order+1
-                        local card=new("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundColor3=T.Card,
-                            BorderSizePixel=0,LayoutOrder=order},column)
-                        corner(card,4); stroke(card)
-                        new("UIListLayout",{SortOrder=Enum.SortOrder.LayoutOrder},card)
-                        local body=new("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,LayoutOrder=2},card)
-                        pad(body,7,7,7,7)
-                        new("UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.LayoutOrder},body)
-                        current={Frame=card,Body=body,Rows={},Title=title or "",Collapsed=false,Column=column}
-                        table.insert(self.Cards,current)
-                        if title then
-                            child.Parent=card; child.LayoutOrder=1
-                            local fold=new("TextButton",{Size=UDim2.fromOffset(24,28),Position=UDim2.new(1,-25,0,3),Text="",
-                                BackgroundTransparency=1,ZIndex=6},child)
-                            -- Toggle headers already use the right edge for their on/off switch.
-                            local hasToggle=child:FindFirstChildOfClass("TextButton")~=fold
-                            if hasToggle then fold.Position=UDim2.new(1,-69,0,3) end
-                            local arrow=icon(fold,"Chevron",UDim2.fromOffset(3,5),16,T.Sub)
-                            current.Arrow=arrow
-                            local group=current
-                            fold.Activated:Connect(function()
-                                group.Collapsed=not group.Collapsed; self:FilterControls()
-                            end)
-                        end
-                    end
-                    if not title then
-                        child.Parent=current.Body; child.LayoutOrder=#current.Rows+1
-                        table.insert(current.Rows,child)
-                    end
-                end
-            end
-        end
-    end
-end
-
-function UI:FilterControls()
-    local query=self.SearchBox and self.SearchBox.Text:lower() or ""
-    for _,group in ipairs(self.Cards or {}) do
-        local heading=query~="" and group.Title:lower():find(query,1,true)~=nil
-        local found=heading or query==""
-        for _,row in ipairs(group.Rows) do
-            local text=row:IsA("TextLabel") and row.Text or ""
-            for _,node in ipairs(row:GetDescendants()) do
-                if node:IsA("TextLabel") or node:IsA("TextButton") or node:IsA("TextBox") then text=text.." "..tostring(node.Text) end
-            end
-            local matches=query=="" or heading or text:lower():find(query,1,true)~=nil
-            row.Visible=matches; found=found or matches
-        end
-        group.Frame.Visible=found
-        group.Body.Visible=query~="" or not group.Collapsed
-        if group.Arrow then group.Arrow.Rotation=group.Body.Visible and 0 or -90 end
-    end
-end
-
 function UI:BuildPages()
     self:BuildMobFarmPage()
     self:BuildBossFarmPage()
@@ -2802,7 +2765,6 @@ function UI:HideAllPages()
 end
 
 function UI:SelectSubTab(name)
-    self:CloseDropdown()
     self:HideAllPages()
 
     local page = self.Pages[name]
@@ -2813,7 +2775,6 @@ function UI:SelectSubTab(name)
     end
 
     self.ActiveSubTab = name
-    self:FilterControls()
 
     for tabName, data in pairs(self.TabButtons or {}) do
         local active = tabName == name
@@ -2922,9 +2883,9 @@ function UI:SelectMenu(menuName)
         tween(data.Button, {
             BackgroundColor3 = active and T.AccentSoft or T.Sidebar,
         })
-        for _,part in ipairs(data.Icon:GetDescendants()) do
-            if part:IsA("Frame") then part.BackgroundColor3=active and T.Accent or T.Sub end
-        end
+        tween(data.Icon, {
+            TextColor3 = active and T.Accent or T.Sub,
+        })
         tween(data.Label, {
             TextColor3 = active and T.Text or T.Sub,
         })
@@ -2932,23 +2893,136 @@ function UI:SelectMenu(menuName)
 end
 
 function UI:BuildSidebar()
-    local head=new("Frame",{Size=UDim2.new(1,0,0,51),BackgroundTransparency=1},self.Sidebar)
-    self.SidebarHead=head
-    self.SidebarAvatar=icon(head,"M",UDim2.fromOffset(16,12),27,T.Accent)
-    self.SidebarBrand=label(head,"MazaSpace",18,T.Text,Enum.Font.Code,UDim2.fromOffset(53,0),UDim2.new(1,-54,1,0))
-    self.SidebarDivider=new("Frame",{Size=UDim2.new(1,0,0,1),Position=UDim2.fromOffset(0,50),BackgroundColor3=T.Stroke,BorderSizePixel=0},head)
-    self.Nav=new("ScrollingFrame",{Size=UDim2.new(1,0,1,-100),Position=UDim2.fromOffset(0,58),BackgroundTransparency=1,
-        BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=0},self.Sidebar)
-    self.NavLayout=new("UIListLayout",{Padding=UDim.new(0,2),SortOrder=Enum.SortOrder.LayoutOrder},self.Nav)
-    for _,entry in ipairs({{"Farm","Farm"},{"World","Location"},{"Player","Player"},{"Setting","Config"}}) do
-        local name=entry[1]
-        local button=new("TextButton",{Size=UDim2.new(1,0,0,42),BackgroundColor3=T.Sidebar,BorderSizePixel=0,Text="",AutoButtonColor=false},self.Nav)
-        local symbol=icon(button,entry[2],UDim2.fromOffset(15,11),20,T.Accent)
-        local title=label(button,name=="Setting" and "Settings" or name,13,T.Sub,Enum.Font.Gotham,UDim2.fromOffset(46,0),UDim2.new(1,-48,1,0))
-        self.NavButtons[name]={Button=button,Icon=symbol,Label=title}
-        button.Activated:Connect(function() self:SelectMenu(name) end)
+    local player = self.Ctx.Player
+
+    local head = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 72),
+        BackgroundTransparency = 1,
+    }, self.Sidebar)
+    self.SidebarHead = head
+
+    local avatar = new("ImageLabel", {
+        Size = UDim2.fromOffset(30, 30),
+        Position = UDim2.new(0.5, -15, 0, 12),
+        BackgroundColor3 = T.Card,
+        BorderSizePixel = 0,
+        Image =
+            "rbxthumb://type=AvatarHeadShot&id="
+            .. tostring(player.UserId)
+            .. "&w=150&h=150",
+    }, head)
+    corner(avatar, 15)
+    stroke(avatar, T.Accent, 1)
+
+    local brand = label(
+        head,
+        "M A Z X",
+        9,
+        T.Accent,
+        Enum.Font.Code,
+        UDim2.new(0, 0, 0, 46),
+        UDim2.new(1, 0, 0, 16)
+    )
+    brand.TextXAlignment = Enum.TextXAlignment.Center
+
+    local divider = new("Frame", {
+        Size = UDim2.new(1, -28, 0, 1),
+        Position = UDim2.new(0, 14, 0, 70),
+        BackgroundColor3 = T.Stroke,
+        BackgroundTransparency = 0.6,
+        BorderSizePixel = 0,
+    }, head)
+
+    local nav = new("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 1, -136),
+        Position = UDim2.fromOffset(0, 88),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        ScrollBarThickness = 0,
+        ScrollBarImageColor3 = T.Accent,
+    }, self.Sidebar)
+    self.Nav = nav
+
+    local navLayout = new("UIListLayout", {
+        Padding = UDim.new(0, 5),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+    }, nav)
+    self.NavLayout = navLayout
+    pad(nav, 0, 0, 10, 10)
+
+    local entries = {
+        { "Farm", "⚒" },
+        { "World", "⊕" },
+        { "Player", "♟" },
+        { "Setting", "☷" },
+    }
+
+    for _, entry in ipairs(entries) do
+        local menuName = entry[1]
+        local iconText = entry[2]
+
+        local button = new("TextButton", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = T.Sidebar,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            Text = "",
+            AutoButtonColor = false,
+        }, nav)
+        corner(button, 8)
+
+        local icon = label(
+            button,
+            iconText,
+            18,
+            T.Sub,
+            Enum.Font.GothamBold,
+            UDim2.fromOffset(0, 1),
+            UDim2.new(1, 0, 0, 20)
+        )
+        icon.TextXAlignment = Enum.TextXAlignment.Center
+
+        local textLabel = label(
+            button,
+            menuName,
+            10,
+            T.Sub,
+            Enum.Font.GothamMedium,
+            UDim2.fromOffset(2, 21),
+            UDim2.new(1, -4, 0, 13)
+        )
+        textLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+        self.NavButtons[menuName] = {
+            Button = button,
+            Icon = icon,
+            Label = textLabel,
+        }
+
+        button.Activated:Connect(function()
+            self:SelectMenu(menuName)
+        end)
     end
-    self.MenuHint=label(self.Sidebar,"Shift / M",11,T.Sub,Enum.Font.Code,UDim2.new(0,16,1,-31),UDim2.new(1,-32,0,20))
+
+    local hint = label(
+        self.Sidebar,
+        "RightShift",
+        9,
+        T.Sub,
+        Enum.Font.Gotham,
+        UDim2.new(0, 8, 1, -28),
+        UDim2.new(1, -16, 0, 18)
+    )
+    hint.TextXAlignment = Enum.TextXAlignment.Center
+
+    self.SidebarAvatar = avatar
+    self.SidebarBrand = brand
+    self.SidebarDivider = divider
+    self.MenuHint = hint
 end
 
 function UI:BuildTop()
@@ -2998,7 +3072,7 @@ function UI:BuildTop()
 
     local hub = label(
         self.Top,
-        "MazaSpace",
+        "Mazxhub",
         16,
         T.Accent,
         Enum.Font.GothamBold,
@@ -3056,8 +3130,35 @@ function UI:BuildTop()
         VerticalAlignment = Enum.VerticalAlignment.Center,
     }, self.Tabs)
 
-    self.SearchBox=searchBox
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function() self:FilterControls() end)
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local query = searchBox.Text:lower()
+        local page = self.Pages[self.ActiveSubTab]
+        if not page then return end
+
+        for _, column in ipairs({ page.Left, page.Right }) do
+            for _, child in ipairs(column:GetChildren()) do
+                if child:IsA("GuiObject")
+                    and not child:IsA("UIListLayout")
+                    and not child:IsA("UIPadding") then
+
+                    if query == "" then
+                        child.Visible = true
+                    else
+                        local haystack = ""
+                        for _, node in ipairs(child:GetDescendants()) do
+                            if node:IsA("TextLabel")
+                                or node:IsA("TextButton")
+                                or node:IsA("TextBox") then
+                                haystack = haystack .. " " .. tostring(node.Text)
+                            end
+                        end
+                        child.Visible =
+                            haystack:lower():find(query, 1, true) ~= nil
+                    end
+                end
+            end
+        end
+    end)
 
     self.DragHandle = new("Frame", {
         Size = UDim2.new(1, -250, 0, 48),
@@ -3074,11 +3175,11 @@ function UI:BuildTop()
 end
 
 function UI:LayoutFor(width, height)
-    local compact = width < 700 or height < 430
+    local compact = width < 780 or height < 430
     return {
         Compact = compact,
-        Width = math.max(1, math.min(820, width - 24)),
-        Height = math.max(1, math.min(620, height - 24)),
+        Width = math.max(1, math.min(740, width - 16)),
+        Height = math.max(1, math.min(500, height - 16)),
     }
 end
 
@@ -3194,7 +3295,7 @@ function UI:Layout(recenter)
     self.Sidebar.Size =
         self.Compact
         and UDim2.new(1, 0, 0, 52)
-        or UDim2.new(0, 184, 1, 0)
+        or UDim2.new(0, 96, 1, 0)
 
     if self.Nav then
         self.Nav.Size =
@@ -3205,7 +3306,7 @@ function UI:Layout(recenter)
         self.Nav.Position =
             self.Compact
             and UDim2.fromOffset(0, 2)
-            or UDim2.fromOffset(0, 56)
+            or UDim2.fromOffset(0, 84)
 
         self.Nav.ScrollingDirection =
             self.Compact
@@ -3229,26 +3330,25 @@ function UI:Layout(recenter)
         data.Button.Size =
             self.Compact
             and UDim2.fromOffset(110, 44)
-            or UDim2.fromOffset(184, 42)
+            or UDim2.fromOffset(76, 52)
     end
 
     self.Right.Size =
         self.Compact
         and UDim2.new(1, 0, 1, -52)
-        or UDim2.new(1, -184, 1, 0)
+        or UDim2.new(1, -96, 1, 0)
 
     self.Right.Position =
         self.Compact
         and UDim2.fromOffset(0, 52)
-        or UDim2.fromOffset(184, 0)
+        or UDim2.fromOffset(96, 0)
 
     if self.Search then
         self.Search.Visible = not self.Compact
     end
-    if self.TechCaption then self.TechCaption.Visible=false end
-    if self.HubName then self.HubName.Visible=self.Compact end
-    if self.Search then self.Search.Size=UDim2.new(1,-68,0,32); self.Search.Position=UDim2.fromOffset(12,10) end
-    if self.DragHandle then self.DragHandle.Visible=false end
+    if self.TechCaption then
+        self.TechCaption.Visible = not self.Compact
+    end
 
     self:ApplyColumns()
 
@@ -3266,48 +3366,40 @@ function UI:Layout(recenter)
 end
 
 function UI:BindDrag()
-    local inputService=self.Ctx.Services.UserInputService
-    local function bind(handle,target,launcher)
-        local gesture
-        handle.Active=true
-        self:Connect(handle.InputBegan,function(input)
-            if gesture then return end
-            if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-                gesture={Input=input,Start=input.Position,Position=target.Position,Moved=false}
-                self:CloseDropdown()
-            end
-        end)
-        self:Connect(inputService.InputChanged,function(input)
-            local g=gesture
-            if not g then return end
-            if input==g.Input or (g.Input.UserInputType==Enum.UserInputType.MouseButton1 and input.UserInputType==Enum.UserInputType.MouseMovement) then
-                local delta=input.Position-g.Start
-                if delta.Magnitude>=6 then g.Moved=true end
-                if g.Moved then
-                    local bounds=self.Surface.AbsoluteSize
-                    local x=g.Position.X.Scale*bounds.X+g.Position.X.Offset+delta.X
-                    local y=g.Position.Y.Scale*bounds.Y+g.Position.Y.Offset+delta.Y
-                    local pos
-                    if launcher then pos=self:ClampPoint(x,y,52,52,bounds.X,bounds.Y,false)
-                    else pos=self:ClampWindowPoint(x,y,target.AbsoluteSize.X,target.AbsoluteSize.Y,bounds.X,bounds.Y) end
-                    target.Position=UDim2.fromOffset(pos.X,pos.Y)
-                end
-            end
-        end)
-        self:Connect(inputService.InputEnded,function(input)
-            local g=gesture
-            if not g then return end
-            if input==g.Input or (g.Input.UserInputType==Enum.UserInputType.MouseButton1 and input.UserInputType==Enum.UserInputType.MouseButton1) then
-                gesture=nil
-                if launcher and not g.Moved and (input.Position-g.Start).Magnitude<6 then self:SetOpen(not self.IsOpen) end
-            end
-        end)
-        self:Connect(inputService.WindowFocusReleased,function() gesture=nil end)
-    end
-    bind(self.SidebarHead,self.Main,false)
-    local strip=new("Frame",{Size=UDim2.new(1,0,0,8),BackgroundTransparency=1,Active=true,ZIndex=25},self.Top)
-    bind(strip,self.Main,false)
-    bind(self.Fab,self.Fab,true)
+    local inputService = self.Ctx.Services.UserInputService
+    local dragging = false
+    local startMouse
+    local startPosition
+
+    self.DragHandle.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+            return
+        end
+        dragging = true
+        startMouse = input.Position
+        startPosition = self.Main.Position
+    end)
+
+    self:Connect(inputService.InputChanged, function(input)
+        if not dragging
+            or input.UserInputType ~= Enum.UserInputType.MouseMovement then
+            return
+        end
+
+        local delta = input.Position - startMouse
+        self.Main.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end)
+
+    self:Connect(inputService.InputEnded, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
 end
 
 function UI:Init(ctx)
@@ -3320,7 +3412,6 @@ function UI:Init(ctx)
     self.ActiveDropdownClose = nil
     self.Compact = false
     self.Column = 1
-    self.Cards = {}
 end
 
 function UI:Start()
@@ -3351,14 +3442,13 @@ function UI:Start()
         BackgroundColor3 = T.Card,
         BorderSizePixel = 0,
         AutoButtonColor = false,
-        Image = "",
-        ZIndex = 200,
+        Image =
+            "rbxthumb://type=AvatarHeadShot&id="
+            .. tostring(self.Ctx.Player.UserId)
+            .. "&w=150&h=150",
     }, self.Surface)
     corner(self.Fab, 26)
     stroke(self.Fab, T.Accent, 1.5)
-    local monogram=icon(self.Fab,"M",UDim2.fromOffset(11,10),30,T.Accent)
-    monogram.ZIndex=201
-    for _,part in ipairs(monogram:GetDescendants()) do if part:IsA("GuiObject") then part.ZIndex=201 end end
 
     self.Main = new("Frame", {
         Size = UDim2.fromOffset(740, 500),
@@ -3373,7 +3463,7 @@ function UI:Start()
     stroke(self.Main, T.Stroke, 1)
 
     self.Sidebar = new("Frame", {
-        Size = UDim2.new(0, 184, 1, 0),
+        Size = UDim2.new(0, 96, 1, 0),
         BackgroundColor3 = T.Sidebar,
         BorderSizePixel = 0,
     }, self.Main)
@@ -3387,8 +3477,8 @@ function UI:Start()
     }, self.Sidebar)
 
     self.Right = new("Frame", {
-        Size = UDim2.new(1, -184, 1, 0),
-        Position = UDim2.fromOffset(184, 0),
+        Size = UDim2.new(1, -96, 1, 0),
+        Position = UDim2.fromOffset(96, 0),
         BackgroundTransparency = 1,
         ClipsDescendants = false,
     }, self.Main)
@@ -3423,16 +3513,17 @@ function UI:Start()
     self:BuildSidebar()
     self:BuildTop()
     self:BuildPages()
-    self:GroupSections()
     self:BindDrag()
 
+    self.Fab.Activated:Connect(function()
+        self:SetOpen(not self.IsOpen)
+    end)
 
     self:Connect(
         self.Ctx.Services.UserInputService.InputBegan,
         function(input, processed)
             if not processed
-                and not self.Ctx.Services.UserInputService:GetFocusedTextBox()
-                and (input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftShift) then
+                and input.KeyCode == Enum.KeyCode.RightShift then
                 self:SetOpen(not self.IsOpen)
             end
         end
@@ -3445,7 +3536,6 @@ function UI:Start()
         end
     )
     self:SelectMenu("Farm")
-    self:SetOpen(true)
 
     self.Ctx:RegisterJob(
         "UIStatus",
@@ -3489,4 +3579,3 @@ function UI:Stop()
 end
 
 return UI
-
