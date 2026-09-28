@@ -799,7 +799,8 @@ function UI:BuildMobFarmPage()
         farm:SetMob(selectedMob)
     end
 
-    local _, _, farmSetter = self:CreateSection(
+    local farmSetter
+    local _, _, farmSetterValue = self:CreateSection(
         left,
         "Mob farm (on/off)",
         farm.Enabled and not farm.BossEnabled,
@@ -808,6 +809,11 @@ function UI:BuildMobFarmPage()
                 if not selectedMob then
                     status.Text = "Select a mob first"
                     status.TextColor3 = T.Danger
+                    task.defer(function()
+                        if farmSetter then
+                            farmSetter(false, false)
+                        end
+                    end)
                     return
                 end
 
@@ -831,6 +837,21 @@ function UI:BuildMobFarmPage()
             end
         end
     )
+    farmSetter = farmSetterValue
+
+    farm.OnStateChanged = function(enabled, mode, owner)
+        local mobActive =
+            enabled == true
+            and mode == "Mob"
+            and owner == "Farm"
+
+        farmSetter(mobActive, false)
+
+        if not enabled and status.Parent then
+            status.Text = "Mob farm stopped"
+            status.TextColor3 = T.Sub
+        end
+    end
 
     local _, getMob, setMob = self:CreateDropdown(
         left,
@@ -2122,6 +2143,26 @@ function UI:BuildQuestsPage()
 
         self.QuestSetters[questName] = setter
 
+        if questName == "HunterExam" then
+            self:CreateButton(
+                entry.Side,
+                "▶ Continue หลังทำช่วง Manual",
+                function()
+                    local ok, message =
+                        quest:ContinueHunterExam()
+
+                    statusLabel.Text =
+                        message or (
+                            ok
+                            and "สอบนักล่า • ไปต่อแล้ว"
+                            or "สอบนักล่า • ยังไปต่อไม่ได้"
+                        )
+                    statusLabel.TextColor3 =
+                        ok and T.Mint or T.Gold
+                end
+            )
+        end
+
         if record then
             record.OnEnabled = function(on)
                 setter(on, false)
@@ -2164,7 +2205,7 @@ function UI:BuildDungeonPage()
 
     self:CreateSection(left, "Auto Dungeon")
 
-    self:CreateToggle(
+    local _, _, dungeonSetter = self:CreateToggle(
         left,
         "Auto Dungeon",
         dungeon.Enabled,
@@ -2176,6 +2217,14 @@ function UI:BuildDungeonPage()
             status.TextColor3 = on and T.Mint or T.Sub
         end
     )
+
+    dungeon.OnEnabled = function(on)
+        dungeonSetter(on, false)
+        status.Text = on
+            and "Auto Dungeon enabled"
+            or "Auto Dungeon disabled"
+        status.TextColor3 = on and T.Mint or T.Sub
+    end
 
     self:CreateSlider(
         left,
@@ -2298,7 +2347,7 @@ function UI:BuildRaidsPage()
         "Raid Chest • Auto Scan All Points"
     )
 
-    self:CreateToggle(
+    local _, _, raidSetter = self:CreateToggle(
         left,
         "Auto Raid Chest",
         raid.Enabled,
@@ -2306,6 +2355,14 @@ function UI:BuildRaidsPage()
             raid:SetEnabled(on)
         end
     )
+
+    raid.OnEnabled = function(on)
+        raidSetter(on, false)
+        status.Text = on
+            and "Raid Chest • ON"
+            or "Raid Chest • OFF"
+        status.TextColor3 = on and T.Mint or T.Sub
+    end
 
     self:CreateButton(
         left,

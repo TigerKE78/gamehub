@@ -5,6 +5,8 @@
 local Farm = {
     Enabled = false,
     Mode = nil,
+    Owner = nil,
+    OnStateChanged = nil,
     MobName = nil,
     BossEnabled = false,
     BossName = "Zuko",
@@ -1384,6 +1386,7 @@ local function farmStop()
     Farm.Ctx.State.FarmEnabled = false
     Farm.Ctx.State.FarmMode = nil
     Farm.Mode = nil
+    Farm.Owner = nil
 
     FarmCharacterState:ReleaseHover()
     farmRestoreHitbox()
@@ -1415,19 +1418,16 @@ local function callStopper(name)
     end
 end
 
-local function farmSet(on, storyInternal)
+local function farmSet(on, owner)
     on = on == true
 
-    callStopper("StopDungeonCombat")
+    local ownerName =
+        type(owner) == "string"
+        and owner
+        or (owner == true and "Boss" or "Farm")
 
-    if not storyInternal then
-        callStopper("StopDungeon")
-        callStopper("StopMultiBoss")
-        callStopper("StopRaidChest")
-        callStopper("StopPages")
-        callStopper("StopDelivery")
-        callStopper("StopStory")
-        callStopper("StopBear")
+    if on and type(Farm.StopConflicts) == "function" then
+        Farm:StopConflicts(ownerName)
     end
 
     farmStop()
@@ -1440,6 +1440,7 @@ local function farmSet(on, storyInternal)
 
     Farm.Mode =
         on and (Farm.BossEnabled and "Boss" or "Mob") or nil
+    Farm.Owner = on and ownerName or nil
     Farm.Ctx.State.FarmEnabled = on
     Farm.Ctx.State.FarmMode = Farm.Mode
     Farm.Ctx.State.TargetName =
@@ -1448,6 +1449,15 @@ local function farmSet(on, storyInternal)
     if on then
         farmKeepCharacterVisible()
         farmStart()
+    end
+
+    if Farm.OnStateChanged then
+        pcall(
+            Farm.OnStateChanged,
+            Farm.Enabled,
+            Farm.Mode,
+            Farm.Owner
+        )
     end
 end
 
@@ -1464,12 +1474,63 @@ function Farm:ClearExternalMode()
     end
 end
 
+function Farm:StopConflicts(owner)
+    local modules =
+        self.Ctx
+        and self.Ctx.Modules
+
+    if not modules then return end
+
+    if owner ~= "Boss" then
+        local boss = modules.Boss
+        if boss and boss.Enabled and type(boss.Stop) == "function" then
+            pcall(function()
+                boss:Stop()
+            end)
+        end
+    end
+
+    if owner ~= "Dungeon" then
+        local dungeon = modules.Dungeon
+        if dungeon
+            and dungeon.Enabled
+            and type(dungeon.SetEnabled) == "function" then
+            pcall(function()
+                dungeon:SetEnabled(false)
+            end)
+        end
+    end
+
+    if owner ~= "Raid" then
+        local raid = modules.Raid
+        if raid
+            and raid.Enabled
+            and type(raid.SetEnabled) == "function" then
+            pcall(function()
+                raid:SetEnabled(false)
+            end)
+        end
+    end
+
+    if owner ~= "Quest" then
+        local quest = modules.Quest
+        if quest
+            and quest.Active
+            and type(quest.StopAll) == "function" then
+            pcall(function()
+                quest:StopAll(nil)
+            end)
+        end
+    end
+end
+
 function Farm:SetExternalMode(name, resolver, mover)
     self.ExternalMode = name
     self.ExternalResolver = resolver
     self.ExternalMover = mover
     self.BossEnabled = false
     self.Mode = name
+    self.Owner = name
 
     self._target = nil
     self._attackTarget = nil
@@ -1480,9 +1541,18 @@ function Farm:SetExternalMode(name, resolver, mover)
     self.Ctx.State.FarmMode = name
     self.Ctx.State.Target = nil
     self.Ctx:SetJobEnabled("Farm", true)
+
+    if self.OnStateChanged then
+        pcall(
+            self.OnStateChanged,
+            self.Enabled,
+            self.Mode,
+            self.Owner
+        )
+    end
 end
 
-function Farm:StartMob(name)
+function Farm:StartMob(name, owner)
     self:ClearExternalMode()
 
     local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss
@@ -1493,17 +1563,17 @@ function Farm:StartMob(name)
     self.MobName = name
     self._target = nil
     self._attackTarget = nil
-    farmSet(true)
+    farmSet(true, owner or "Farm")
 end
 
-function Farm:StartBoss(name)
+function Farm:StartBoss(name, owner)
     self:ClearExternalMode()
     self.BossEnabled = true
     self.Mode = "Boss"
     self.BossName = name or self.BossName
     self._target = nil
     self._attackTarget = nil
-    farmSet(true, true)
+    farmSet(true, owner or "Boss")
 end
 
 function Farm:SetMob(name)
@@ -1761,6 +1831,15 @@ function Farm:Stop()
     if wasBoss then
         local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss
         if boss then boss.Enabled = false end
+    end
+
+    if self.OnStateChanged then
+        pcall(
+            self.OnStateChanged,
+            false,
+            nil,
+            nil
+        )
     end
 end
 

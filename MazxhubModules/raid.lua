@@ -1,6 +1,7 @@
 -- MazxhubModules/raid.lua
 local Raid = {
     Enabled = false,
+    OnEnabled = nil,
     Phase = "idle",
     PointIndex = 1,
     SeenCount = 0,
@@ -136,12 +137,21 @@ function Raid:SetEnabled(on)
     local f = farm(self)
 
     if on then
+        if type(f.StopConflicts) == "function" then
+            f:StopConflicts("Raid")
+        end
         if f.Enabled then f:Stop() end
         if not self:SetPoint(1) then
             self:SetStatus("Raid Chest • ไม่มีพิกัด")
+            if self.OnEnabled then
+                pcall(self.OnEnabled, false)
+            end
             return
         end
         self.Enabled = true
+        if self.OnEnabled then
+            pcall(self.OnEnabled, true)
+        end
         self.Phase = "checkMove"
         self.NextAt = 0
         self.SeenCount = 0
@@ -150,6 +160,9 @@ function Raid:SetEnabled(on)
         self:SetStatus("Raid Chest • ON")
     else
         self.Enabled = false
+        if self.OnEnabled then
+            pcall(self.OnEnabled, false)
+        end
         self:FinishPrompt()
         if f.Enabled
             and (
@@ -223,7 +236,7 @@ function Raid:Step()
         local alive = f.farmFindMobsByName and f.farmFindMobsByName(self.MobKey) or {}
         if #alive > 0 then
             self.SeenCount = #alive
-            f:StartMob(self.MobKey)
+            f:StartMob(self.MobKey, "Raid")
             self.Phase = "fight"
             self.NextAt = now + 0.15
             return

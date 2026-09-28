@@ -1,6 +1,7 @@
 -- MazxhubModules/dungeon.lua
 local Dungeon = {
     Enabled = false,
+    OnEnabled = nil,
     Unlock = {
         Enabled = false,
         OnStatus = nil,
@@ -174,6 +175,9 @@ function Dungeon:SetEnabled(on)
 
     if not on then
         self.Enabled = false
+        if self.OnEnabled then
+            pcall(self.OnEnabled, false)
+        end
         self.Current = nil
         self.ApproachTarget = nil
         self.ApproachReadyAt = 0
@@ -187,8 +191,14 @@ function Dungeon:SetEnabled(on)
         return
     end
 
+    if type(f.StopConflicts) == "function" then
+        f:StopConflicts("Dungeon")
+    end
     if f.Enabled then f:Stop() end
     self.Enabled = true
+    if self.OnEnabled then
+        pcall(self.OnEnabled, true)
+    end
     self.Current = nil
     self.NextTargetAt = 0
     self.ApproachTarget = nil

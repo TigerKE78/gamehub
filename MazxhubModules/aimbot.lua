@@ -24,6 +24,10 @@ local Aimbot = {
     NextNPCScan = 0,
     Target = nil,
     Connections = {},
+    FOVSegments = {},
+    FOVSegmentCount = 72,
+    FOVConnection = nil,
+    RenderName = nil,
 }
 
 local function rootOf(model)
@@ -176,28 +180,37 @@ function Aimbot:FindClosestTarget(camera)
 
         for _, record in ipairs(self.NPCs) do
             if record.Humanoid
-                and record.Humanoid.Health > 0
-                and record.Part
-                and record.Part.Parent then
+                and record.Humanoid.Parent
+                and record.Humanoid.Health > 0 then
 
-                local point, visible =
-                    camera:WorldToViewportPoint(
-                        record.Part.Position
-                    )
+                -- NPC parts can be replaced while the model is still alive.
+                -- Refresh the preferred part instead of keeping a stale Head/HRP.
+                local part =
+                    self:CandidatePart(record.Model)
+                    or record.Part
 
-                if visible and point.Z > 0 then
-                    local distance =
-                        (
-                            Vector2.new(
-                                point.X,
-                                point.Y
-                            )
-                            - center
-                        ).Magnitude
+                record.Part = part
 
-                    if distance <= bestDistance then
-                        bestDistance = distance
-                        best = record.Part
+                if part and part.Parent then
+                    local point, visible =
+                        camera:WorldToViewportPoint(
+                            part.Position
+                        )
+
+                    if visible and point.Z > 0 then
+                        local distance =
+                            (
+                                Vector2.new(
+                                    point.X,
+                                    point.Y
+                                )
+                                - center
+                            ).Magnitude
+
+                        if distance <= bestDistance then
+                            bestDistance = distance
+                            best = part
+                        end
                     end
                 end
             end
@@ -210,28 +223,73 @@ end
 function Aimbot:UpdateFOV(camera)
     if not self.FOVCircle then return end
 
-    local center = self:FOVCenter(camera)
-    local diameter = self.FOV * 2
+    local visible = self.ShowFOV == true
 
-    self.FOVCircle.Visible = self.ShowFOV
+    if not visible then
+        self.FOVCircle.Visible = false
+
+        if self.FOVCenterDot then
+            self.FOVCenterDot.Visible = false
+        end
+
+        for _, segment in ipairs(self.FOVSegments or {}) do
+            segment.Visible = false
+        end
+
+        return
+    end
+
+    if not camera then return end
+
+    local center = self:FOVCenter(camera)
+    local radius = math.max(10, tonumber(self.FOV) or 180)
+    local diameter = radius * 2
+
+    self.FOVCircle.Visible = true
     self.FOVCircle.Size =
         UDim2.fromOffset(diameter, diameter)
-
     self.FOVCircle.Position =
         UDim2.fromOffset(center.X, center.Y)
 
     if self.FOVCenterDot then
-        self.FOVCenterDot.Visible = self.ShowFOV
+        self.FOVCenterDot.Visible = true
         self.FOVCenterDot.Position =
             UDim2.fromOffset(center.X, center.Y)
+    end
+
+    local count = math.max(
+        8,
+        tonumber(self.FOVSegmentCount) or 72
+    )
+    local arcLength =
+        math.max(
+            5,
+            math.floor(
+                (
+                    2 * math.pi * radius / count
+                ) * 0.82
+            )
+        )
+
+    for index, segment in ipairs(self.FOVSegments or {}) do
+        local angle =
+            ((index - 1) / count)
+            * math.pi
+            * 2
+
+        local x = center.X + math.cos(angle) * radius
+        local y = center.Y + math.sin(angle) * radius
+
+        segment.Visible = true
+        segment.Position = UDim2.fromOffset(x, y)
+        segment.Size = UDim2.fromOffset(arcLength, 2)
+        segment.Rotation = math.deg(angle) + 90
     end
 end
 
 function Aimbot:Step()
     local camera = workspace.CurrentCamera
     if not camera then return end
-
-    self:UpdateFOV(camera)
 
     if not self:ShouldAim() then
         self.Target = nil
@@ -276,6 +334,10 @@ function Aimbot:SetShowFOV(on)
 
     if self.FOVCenterDot then
         self.FOVCenterDot.Visible = self.ShowFOV
+    end
+
+    for _, segment in ipairs(self.FOVSegments or {}) do
+        segment.Visible = self.ShowFOV
     end
 end
 
@@ -325,6 +387,7 @@ function Aimbot:Init(ctx)
     self.FOVCircle.BackgroundTransparency = 0.985
     self.FOVCircle.Visible = self.ShowFOV
     self.FOVCircle.Active = false
+    self.FOVCircle.ZIndex = 80
     self.FOVCircle.Parent = self.Gui
 
     local circleCorner = Instance.new("UICorner")
@@ -336,7 +399,30 @@ function Aimbot:Init(ctx)
         Color3.fromRGB(150, 220, 255)
     circleStroke.Thickness = 2
     circleStroke.Transparency = 0
+    circleStroke.ApplyStrokeMode =
+        Enum.ApplyStrokeMode.Border
     circleStroke.Parent = self.FOVCircle
+
+    -- Some clients/executors do not render UIStroke reliably on a
+    -- near-transparent rounded frame. Keep a segmented ring fallback.
+    self.FOVSegments = {}
+
+    for index = 1, self.FOVSegmentCount do
+        local segment = Instance.new("Frame")
+        segment.Name = "FOVSeg" .. tostring(index)
+        segment.AnchorPoint = Vector2.new(0.5, 0.5)
+        segment.Size = UDim2.fromOffset(12, 2)
+        segment.BackgroundColor3 =
+            Color3.fromRGB(150, 220, 255)
+        segment.BackgroundTransparency = 0.05
+        segment.BorderSizePixel = 0
+        segment.Visible = self.ShowFOV
+        segment.Active = false
+        segment.ZIndex = 81
+        segment.Parent = self.Gui
+
+        table.insert(self.FOVSegments, segment)
+    end
 
     self.FOVCenterDot = Instance.new("Frame")
     self.FOVCenterDot.Name = "FOVCenter"
@@ -348,6 +434,7 @@ function Aimbot:Init(ctx)
         Color3.fromRGB(150, 220, 255)
     self.FOVCenterDot.BorderSizePixel = 0
     self.FOVCenterDot.Visible = self.ShowFOV
+    self.FOVCenterDot.ZIndex = 82
     self.FOVCenterDot.Parent = self.Gui
 
     local dotCorner = Instance.new("UICorner")
@@ -359,16 +446,18 @@ function Aimbot:Init(ctx)
     table.insert(
         self.Connections,
         input.InputBegan:Connect(function(event, processed)
+            -- Alt only changes the visual/selection center and should still
+            -- work even while another UI is consuming keyboard input.
+            if event.KeyCode == Enum.KeyCode.LeftAlt
+                or event.KeyCode == Enum.KeyCode.RightAlt then
+                self.AltCenter = true
+            end
+
             if processed then return end
 
             if event.UserInputType ==
                 Enum.UserInputType.MouseButton2 then
                 self.RightMouseHeld = true
-            end
-
-            if event.KeyCode == Enum.KeyCode.LeftAlt
-                or event.KeyCode == Enum.KeyCode.RightAlt then
-                self.AltCenter = true
             end
 
             local keyName = event.KeyCode.Name
@@ -402,11 +491,56 @@ function Aimbot:Init(ctx)
 end
 
 function Aimbot:Start()
-    self.Ctx:RegisterJob(
-        "Aimbot",
-        0.02,
+    local ctx = self.Ctx
+    if not ctx then return end
+
+    local runService = ctx.Services.RunService
+
+    -- Remove the old Heartbeat job if this module is hot-reloaded from
+    -- an earlier modular version.
+    if type(ctx.RemoveJob) == "function" then
+        ctx:RemoveJob("Aimbot")
+    end
+
+    if self.FOVConnection then
+        pcall(function()
+            self.FOVConnection:Disconnect()
+        end)
+        self.FOVConnection = nil
+    end
+
+    if self.RenderName then
+        pcall(function()
+            runService:UnbindFromRenderStep(
+                self.RenderName
+            )
+        end)
+    end
+
+    self.RenderName =
+        "MazxhubAimbot_"
+        .. tostring(ctx.Player.UserId)
+
+    -- Keep the FOV renderer independent from aiming. The guide remains
+    -- responsive even when aiming is currently inactive.
+    self.FOVConnection =
+        runService.RenderStepped:Connect(function()
+            if self.Gui and self.Gui.Parent then
+                self:UpdateFOV(
+                    workspace.CurrentCamera
+                )
+            end
+        end)
+
+    -- Run immediately after Roblox's normal camera update. Heartbeat can
+    -- be overwritten by the camera script later in the same frame.
+    runService:BindToRenderStep(
+        self.RenderName,
+        Enum.RenderPriority.Camera.Value + 1,
         function()
-            self:Step()
+            if self.Gui and self.Gui.Parent then
+                self:Step()
+            end
         end
     )
 end
@@ -415,8 +549,36 @@ function Aimbot:Stop()
     self.Enabled = false
     self.SkillEnabled = false
     self.RightMouseHeld = false
+    self.AltCenter = false
     self.SkillHeld = {}
     self.Target = nil
+
+    local ctx = self.Ctx
+    local runService =
+        ctx
+        and ctx.Services
+        and ctx.Services.RunService
+
+    if ctx and type(ctx.RemoveJob) == "function" then
+        ctx:RemoveJob("Aimbot")
+    end
+
+    if runService and self.RenderName then
+        pcall(function()
+            runService:UnbindFromRenderStep(
+                self.RenderName
+            )
+        end)
+    end
+
+    self.RenderName = nil
+
+    if self.FOVConnection then
+        pcall(function()
+            self.FOVConnection:Disconnect()
+        end)
+        self.FOVConnection = nil
+    end
 
     for _, connection in ipairs(self.Connections) do
         pcall(function()
@@ -430,6 +592,10 @@ function Aimbot:Stop()
         self.Gui:Destroy()
         self.Gui = nil
     end
+
+    self.FOVCircle = nil
+    self.FOVCenterDot = nil
+    self.FOVSegments = {}
 end
 
 return Aimbot

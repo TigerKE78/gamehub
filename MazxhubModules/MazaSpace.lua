@@ -54,7 +54,6 @@ return {
         K = { Enabled = false, Interval = 1.0 },
     },
 }
-
 ]====]
 BUNDLED_SOURCES["core.lua"] = [====[
 -- MazxhubModules/core.lua
@@ -162,7 +161,6 @@ function Core:Create(config)
 end
 
 return Core
-
 ]====]
 BUNDLED_SOURCES["farm.lua"] = [====[
 -- MazxhubModules/farm.lua
@@ -172,6 +170,8 @@ BUNDLED_SOURCES["farm.lua"] = [====[
 local Farm = {
     Enabled = false,
     Mode = nil,
+    Owner = nil,
+    OnStateChanged = nil,
     MobName = nil,
     BossEnabled = false,
     BossName = "Zuko",
@@ -1551,6 +1551,7 @@ local function farmStop()
     Farm.Ctx.State.FarmEnabled = false
     Farm.Ctx.State.FarmMode = nil
     Farm.Mode = nil
+    Farm.Owner = nil
 
     FarmCharacterState:ReleaseHover()
     farmRestoreHitbox()
@@ -1582,19 +1583,16 @@ local function callStopper(name)
     end
 end
 
-local function farmSet(on, storyInternal)
+local function farmSet(on, owner)
     on = on == true
 
-    callStopper("StopDungeonCombat")
+    local ownerName =
+        type(owner) == "string"
+        and owner
+        or (owner == true and "Boss" or "Farm")
 
-    if not storyInternal then
-        callStopper("StopDungeon")
-        callStopper("StopMultiBoss")
-        callStopper("StopRaidChest")
-        callStopper("StopPages")
-        callStopper("StopDelivery")
-        callStopper("StopStory")
-        callStopper("StopBear")
+    if on and type(Farm.StopConflicts) == "function" then
+        Farm:StopConflicts(ownerName)
     end
 
     farmStop()
@@ -1607,6 +1605,7 @@ local function farmSet(on, storyInternal)
 
     Farm.Mode =
         on and (Farm.BossEnabled and "Boss" or "Mob") or nil
+    Farm.Owner = on and ownerName or nil
     Farm.Ctx.State.FarmEnabled = on
     Farm.Ctx.State.FarmMode = Farm.Mode
     Farm.Ctx.State.TargetName =
@@ -1615,6 +1614,15 @@ local function farmSet(on, storyInternal)
     if on then
         farmKeepCharacterVisible()
         farmStart()
+    end
+
+    if Farm.OnStateChanged then
+        pcall(
+            Farm.OnStateChanged,
+            Farm.Enabled,
+            Farm.Mode,
+            Farm.Owner
+        )
     end
 end
 
@@ -1631,12 +1639,63 @@ function Farm:ClearExternalMode()
     end
 end
 
+function Farm:StopConflicts(owner)
+    local modules =
+        self.Ctx
+        and self.Ctx.Modules
+
+    if not modules then return end
+
+    if owner ~= "Boss" then
+        local boss = modules.Boss
+        if boss and boss.Enabled and type(boss.Stop) == "function" then
+            pcall(function()
+                boss:Stop()
+            end)
+        end
+    end
+
+    if owner ~= "Dungeon" then
+        local dungeon = modules.Dungeon
+        if dungeon
+            and dungeon.Enabled
+            and type(dungeon.SetEnabled) == "function" then
+            pcall(function()
+                dungeon:SetEnabled(false)
+            end)
+        end
+    end
+
+    if owner ~= "Raid" then
+        local raid = modules.Raid
+        if raid
+            and raid.Enabled
+            and type(raid.SetEnabled) == "function" then
+            pcall(function()
+                raid:SetEnabled(false)
+            end)
+        end
+    end
+
+    if owner ~= "Quest" then
+        local quest = modules.Quest
+        if quest
+            and quest.Active
+            and type(quest.StopAll) == "function" then
+            pcall(function()
+                quest:StopAll(nil)
+            end)
+        end
+    end
+end
+
 function Farm:SetExternalMode(name, resolver, mover)
     self.ExternalMode = name
     self.ExternalResolver = resolver
     self.ExternalMover = mover
     self.BossEnabled = false
     self.Mode = name
+    self.Owner = name
 
     self._target = nil
     self._attackTarget = nil
@@ -1647,9 +1706,18 @@ function Farm:SetExternalMode(name, resolver, mover)
     self.Ctx.State.FarmMode = name
     self.Ctx.State.Target = nil
     self.Ctx:SetJobEnabled("Farm", true)
+
+    if self.OnStateChanged then
+        pcall(
+            self.OnStateChanged,
+            self.Enabled,
+            self.Mode,
+            self.Owner
+        )
+    end
 end
 
-function Farm:StartMob(name)
+function Farm:StartMob(name, owner)
     self:ClearExternalMode()
 
     local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss
@@ -1660,17 +1728,17 @@ function Farm:StartMob(name)
     self.MobName = name
     self._target = nil
     self._attackTarget = nil
-    farmSet(true)
+    farmSet(true, owner or "Farm")
 end
 
-function Farm:StartBoss(name)
+function Farm:StartBoss(name, owner)
     self:ClearExternalMode()
     self.BossEnabled = true
     self.Mode = "Boss"
     self.BossName = name or self.BossName
     self._target = nil
     self._attackTarget = nil
-    farmSet(true, true)
+    farmSet(true, owner or "Boss")
 end
 
 function Farm:SetMob(name)
@@ -1929,10 +1997,18 @@ function Farm:Stop()
         local boss = self.Ctx and self.Ctx.Modules and self.Ctx.Modules.Boss
         if boss then boss.Enabled = false end
     end
+
+    if self.OnStateChanged then
+        pcall(
+            self.OnStateChanged,
+            false,
+            nil,
+            nil
+        )
+    end
 end
 
 return Farm
-
 ]====]
 BUNDLED_SOURCES["boss.lua"] = [====[
 -- MazxhubModules/boss.lua
@@ -2287,7 +2363,6 @@ function Boss:ResolveSelectedTarget()
 end
 
 return Boss
-
 ]====]
 BUNDLED_SOURCES["combat.lua"] = [====[
 -- MazxhubModules/combat.lua
@@ -3128,7 +3203,6 @@ function Combat:Stop()
 end
 
 return Combat
-
 ]====]
 BUNDLED_SOURCES["skill.lua"] = [====[
 -- MazxhubModules/skill.lua
@@ -3458,7 +3532,6 @@ function Skill:Stop()
 end
 
 return Skill
-
 ]====]
 BUNDLED_SOURCES["player.lua"] = [====[
 -- MazxhubModules/player.lua
@@ -3957,7 +4030,6 @@ function Player:Stop()
 end
 
 return Player
-
 ]====]
 BUNDLED_SOURCES["teleport.lua"] = [====[
 -- MazxhubModules/teleport.lua
@@ -4249,7 +4321,6 @@ function Teleport:Stop()
 end
 
 return Teleport
-
 ]====]
 BUNDLED_SOURCES["quest.lua"] = [====[
 -- MazxhubModules/quest.lua
@@ -4368,6 +4439,48 @@ local AUTO_MOB_QUESTS = {
     },
 }
 
+local HUNTER_POSITIONS = {
+    Vael = Vector3.new(-5660.24, 14.65, 2350.78),
+    Rika = Vector3.new(-6999.99, 44.46, 2430.47),
+    Mizuto = Vector3.new(-5722.31, 54.67, 1482.68),
+    Lavato = Vector3.new(-4961.18, 40.50, 3014.45),
+    Levi = Vector3.new(-5195.18, 40.50, 1006.45),
+    Steve = Vector3.new(-3439.75, 41.56, 1966.10),
+}
+
+local HUNTER_VAEL_FIGHT =
+    Vector3.new(-5537.75732421875, 33.781185150146484, 2526.718505859375)
+
+local HUNTER_LOST_FIGHT =
+    Vector3.new(-4954.16, -142.50, 2017.48)
+
+local HUNTER_RETURN_POINT =
+    Vector3.new(-5721.0107421875, 42.61933517456055, 1439.741455078125)
+
+local HUNTER_DUNGEON_ROUTE = {
+    { Position = Vector3.new(-5727.59521484375, 42.619346618652344, 1439.687255859375), Hold = 3 },
+    { Position = Vector3.new(-120.85259246826172, 892.726318359375, 3855.791015625), Hold = 5 },
+    { Position = Vector3.new(-212.2955780029297, 929.7340087890625, 3578.82275390625), Hold = 5 },
+    { Position = Vector3.new(-122.9549789428711, 950.2499389648438, 3282.32470703125), Hold = 5 },
+    { Position = Vector3.new(-235.82069396972656, 970.2499389648438, 3422.9482421875), Hold = 5 },
+    { Position = Vector3.new(-36.726383209228516, 950.2499389648438, 3297.615234375), Hold = 5 },
+    { Position = Vector3.new(490.1626892089844, 947.6620483398438, 3237.6872558593), Hold = 5 },
+    { Position = Vector3.new(211.13230895996094, 1018.998779296875, 2959.263671875), Hold = 0 },
+}
+
+local HUNTER_LAVATO_PATH = {
+    Vector3.new(-6617.11083984375, 40.49899673461914, 2519.365478515625),
+    Vector3.new(-5499.5615234375, 40.498992919921875, 1605.9420166015625),
+}
+
+local HUNTER_LEVI_PATH = {
+    Vector3.new(-3819.544921875, 40.499996185302734, 1628.1923828125),
+    Vector3.new(-5190.208984375, 40.49899673461914, 1011.4854736328125),
+}
+
+local HUNTER_HAND_DEMON_CENTER =
+    Vector3.new(-3430.24, 71.04, 2678.84)
+
 function Quest:SetStatus(q, text)
     q.StatusText = text
     q.Status = text
@@ -4466,6 +4579,9 @@ function Quest:SetEnabled(name, on)
         self:StopAll(name)
 
         local f = farm(self)
+        if f and type(f.StopConflicts) == "function" then
+            f:StopConflicts("Quest")
+        end
         if f.Enabled then
             f:Stop()
         end
@@ -4476,8 +4592,41 @@ function Quest:SetEnabled(name, on)
         end
 
         self.Active = name
-    elseif self.Active == name then
-        self.Active = nil
+    else
+        -- Dedicated quests can temporarily own Farm/Combat and death
+        -- connections. Release those resources immediately when unticked.
+        if q.Watch and q.Watch.Connection then
+            pcall(function()
+                q.Watch.Connection:Disconnect()
+            end)
+        end
+        q.Watch = nil
+
+        if q.BossWatch then
+            pcall(function()
+                q.BossWatch:Disconnect()
+            end)
+            q.BossWatch = nil
+        end
+
+        local f = farm(self)
+        if f and (
+            q.FarmOwned == true
+            or f.ExternalMode == "HunterExam"
+            or (
+                (name == "Kazu" or name == "Bear")
+                and q.Phase == "fight"
+            )
+        ) then
+            pcall(function()
+                f:Stop()
+            end)
+        end
+        q.FarmOwned = false
+
+        if self.Active == name then
+            self.Active = nil
+        end
     end
 
     q.Enabled = on
@@ -4508,6 +4657,16 @@ function Quest:SetEnabled(name, on)
         q.Stage = 1
         q.Kills = 0
         q.ManualReady = false
+        q.FarmOwned = false
+        q.RouteIndex = 1
+        q.PathIndex = 1
+        q.SawSurvivalTarget = false
+        q.BossDead = false
+        q.BossDeathPosition = nil
+        q.LootStarted = false
+        q.RestoreLootEnabled = nil
+        q.Watch = nil
+        q.BossWatch = nil
     end
 
     self:SetStatus(
@@ -4865,7 +5024,7 @@ function Quest:KazuStep(q, now)
             self:AddQuest("Ill help clear them out")
             q.Phase = "fight"
             q.NextAt = now + 0.4
-            farm(self):StartMob("*Civilian*")
+            farm(self):StartMob("*Civilian*", "Quest")
             self:SetStatus(q, "Quest 1 • *Civilian* • 0/4")
         end
         return
@@ -4951,7 +5110,7 @@ function Quest:BearStep(q, now)
             q.TomRuns += 1
             q.Phase = "fight"
             q.NextAt = now + 0.4
-            farm(self):StartMob("Bear Cub")
+            farm(self):StartMob("Bear Cub", "Quest")
             self:SetStatus(
                 q,
                 "Quest 5 • Tom รอบ "
@@ -5034,6 +5193,989 @@ function Quest:DungeonUnlockStep(q, now)
         self:SetEnabled("DungeonUnlock", false)
         self:SetStatus(q, "กด T แล้ว — ตรวจผลปลดล็อกในเกม")
     end
+end
+
+function Quest:HunterFire(...)
+    local event = signal(self)
+    if not event then return false end
+
+    local args = { ... }
+    return pcall(function()
+        event:FireServer(table.unpack(args))
+    end)
+end
+
+function Quest:HunterNpc(name)
+    local debree = workspace:FindFirstChild("Debree")
+    local regions = debree and debree:FindFirstChild("Regions")
+    local finalSelection =
+        regions and regions:FindFirstChild("Final Selection")
+    local stationary =
+        finalSelection and finalSelection:FindFirstChild("StationaryNpcs")
+
+    return stationary and stationary:FindFirstChild(name) or nil
+end
+
+function Quest:HunterGoNpc(name)
+    local object = self:HunterNpc(name)
+    local destination = object and cframeOf(self, object)
+
+    if not destination then
+        local fallback = HUNTER_POSITIONS[name]
+        destination =
+            fallback
+            and CFrame.new(fallback + Vector3.new(0, 3, 0))
+            or nil
+    end
+
+    if not destination then return false end
+
+    local stand =
+        destination * CFrame.new(0, 0, -3)
+
+    return teleport(self):Go(
+        CFrame.lookAt(
+            stand.Position,
+            destination.Position
+        )
+    )
+end
+
+function Quest:HunterObject(name)
+    return workspace:FindFirstChild(name, true)
+end
+
+function Quest:HunterCollect(q, name, holdTime, nextPhase, now)
+    local object = self:HunterObject(name)
+    local cf = object and cframeOf(self, object)
+
+    if not cf then
+        q.NextAt = now + 0.8
+        self:SetStatus(q, "สอบนักล่า • รอ " .. tostring(name))
+        return false
+    end
+
+    teleport(self):Go(
+        CFrame.lookAt(
+            cf.Position + Vector3.new(0, 2.5, 2.5),
+            cf.Position
+        )
+    )
+
+    local seconds = math.max(tonumber(holdTime) or 1, 0.1)
+    self:PressT(seconds)
+    q.Phase = nextPhase
+    q.NextAt = now + seconds + 0.45
+
+    self:SetStatus(
+        q,
+        "สอบนักล่า • กำลังเก็บ " .. tostring(name)
+    )
+
+    return true
+end
+
+function Quest:HunterActiveFolder()
+    local humanoids = workspace:FindFirstChild("Humanoids")
+    local regions = humanoids and humanoids:FindFirstChild("Regions")
+    local finalSelection =
+        regions and regions:FindFirstChild("Final Selection")
+
+    return finalSelection
+        and finalSelection:FindFirstChild("ActiveNpcs")
+        or nil
+end
+
+function Quest:HunterFindTarget(center, radius, predicate)
+    local folder = self:HunterActiveFolder()
+    if not folder then return nil end
+
+    local best
+    local bestDistance = math.huge
+    local seen = {}
+
+    for _, hum in ipairs(folder:GetDescendants()) do
+        if hum:IsA("Humanoid") and hum.Health > 0 then
+            local model = hum.Parent
+
+            if model
+                and not seen[model]
+                and model:IsA("Model") then
+
+                seen[model] = true
+
+                local root =
+                    model:FindFirstChild(
+                        "HumanoidRootPart",
+                        true
+                    )
+                    or model.PrimaryPart
+                    or model:FindFirstChildWhichIsA(
+                        "BasePart",
+                        true
+                    )
+
+                if root and root:IsA("BasePart") then
+                    local allowed =
+                        predicate == nil
+                        or predicate(model, hum, root) == true
+
+                    if allowed then
+                        local distance =
+                            center
+                            and (root.Position - center).Magnitude
+                            or 0
+
+                        if (not radius or distance <= radius)
+                            and distance < bestDistance then
+                            best = model
+                            bestDistance = distance
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return best
+end
+
+function Quest:HunterBossTarget()
+    local add =
+        self:HunterFindTarget(
+            HUNTER_HAND_DEMON_CENTER,
+            350,
+            function(model)
+                return model.Name ~= "Hand Demon"
+            end
+        )
+
+    if add then return add end
+
+    return self:HunterFindTarget(
+        HUNTER_HAND_DEMON_CENTER,
+        450,
+        function(model)
+            return model.Name == "Hand Demon"
+        end
+    )
+end
+
+function Quest:HunterStartFarm(q, resolver, statusText)
+    if q.FarmOwned then return end
+
+    local f = farm(self)
+    if not f then return end
+
+    f.AutoAttack = true
+    f:SetExternalMode(
+        "HunterExam",
+        resolver,
+        function(target)
+            return f.farmMoveUnder
+                and f.farmMoveUnder(target)
+                or false
+        end
+    )
+
+    q.FarmOwned = true
+
+    if statusText then
+        self:SetStatus(q, statusText)
+    end
+end
+
+function Quest:HunterStopFarm(q)
+    local f = farm(self)
+
+    if q.Watch and q.Watch.Connection then
+        pcall(function()
+            q.Watch.Connection:Disconnect()
+        end)
+    end
+    q.Watch = nil
+
+    if f and (
+        q.FarmOwned
+        or f.ExternalMode == "HunterExam"
+    ) then
+        pcall(function()
+            f:Stop()
+        end)
+    end
+
+    q.FarmOwned = false
+end
+
+function Quest:ContinueHunterExam()
+    local q = self.Quests and self.Quests.HunterExam
+
+    if not q or not q.Enabled then
+        return false, "สอบนักล่ายังไม่ได้เปิด"
+    end
+
+    if q.Phase ~= "manual" then
+        return false, "ตอนนี้ยังไม่ถึงช่วง Manual"
+    end
+
+    q.ManualReady = true
+    q.NextAt = 0
+    self:SetStatus(q, "สอบนักล่า • ทำ Manual เสร็จแล้ว • ไปต่อ")
+    return true, "ไปต่อแล้ว"
+end
+
+function Quest:HunterExamEarly(q, now)
+    local phase = q.Phase
+
+    if phase == "manual" then
+        if q.ManualReady then
+            q.Phase = "mizuto"
+            q.NextAt = 0
+            self:SetStatus(q, "สอบนักล่า • ไปหา Mizuto")
+        end
+        return true
+    end
+
+    if phase ~= "rem"
+        and phase ~= "remTalk"
+        and phase ~= "fruitGrapes"
+        and phase ~= "fruitApple"
+        and phase ~= "fruitBanana"
+        and phase ~= "remReturn"
+        and phase ~= "vael"
+        and phase ~= "vaelFight"
+        and phase ~= "vaelReturn"
+        and phase ~= "katana"
+        and phase ~= "klien"
+        and phase ~= "rika"
+        and phase ~= "bandage"
+        and phase ~= "bandageBuy"
+        and phase ~= "klienTreat" then
+        return false
+    end
+
+    if blocked(self) or now < (q.NextAt or 0) then
+        return true
+    end
+
+    if phase == "rem" then
+        if self:HunterGoNpc("Rem") then
+            q.Phase = "remTalk"
+            q.NextAt = now + 0.4
+            self:SetStatus(q, "สอบนักล่า • Rem")
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "remTalk" then
+        if self:Talk()
+            and self:HunterFire(
+                "QuestProgress",
+                "Locate Rem",
+                "Find Rem"
+            ) then
+            q.Phase = "fruitGrapes"
+            q.NextAt = now + 0.25
+        else
+            q.NextAt = now + 0.6
+        end
+        return true
+    end
+
+    if phase == "fruitGrapes" then
+        self:HunterCollect(
+            q,
+            "Grapes",
+            1.2,
+            "fruitApple",
+            now
+        )
+        return true
+    end
+
+    if phase == "fruitApple" then
+        self:HunterCollect(
+            q,
+            "Apple1",
+            1.2,
+            "fruitBanana",
+            now
+        )
+        return true
+    end
+
+    if phase == "fruitBanana" then
+        self:HunterCollect(
+            q,
+            "Banana1",
+            1.2,
+            "remReturn",
+            now
+        )
+        return true
+    end
+
+    if phase == "remReturn" then
+        if self:HunterGoNpc("Rem") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Help Rem",
+                "Return to Rem"
+            )
+            q.Phase = "vael"
+            q.NextAt = now + 0.4
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "vael" then
+        if self:HunterGoNpc("Vael") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Find Vael",
+                "Find Vael"
+            )
+            q.Kills = 0
+            q.Phase = "vaelFight"
+            q.NextAt = now + 0.35
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "vaelFight" then
+        self:HunterStartFarm(
+            q,
+            function()
+                return self:HunterFindTarget(
+                    HUNTER_VAEL_FIGHT,
+                    150
+                )
+            end,
+            "สอบนักล่า • ฆ่ามอนรอบ Vael 0/6"
+        )
+
+        self:WatchFarmTarget(q, 6)
+
+        if q.Kills >= 6 then
+            self:HunterStopFarm(q)
+            q.Phase = "vaelReturn"
+            q.NextAt = now + 0.3
+        end
+        return true
+    end
+
+    if phase == "vaelReturn" then
+        if self:HunterGoNpc("Vael") then
+            q.Phase = "katana"
+            q.NextAt = now + 0.35
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "katana" then
+        self:HunterCollect(
+            q,
+            "Nichirin Katana1",
+            1,
+            "klien",
+            now
+        )
+        return true
+    end
+
+    if phase == "klien" then
+        if self:HunterGoNpc("Klien") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Speak with Klien",
+                "Return to Klien"
+            )
+            q.Phase = "rika"
+            q.NextAt = now + 0.4
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "rika" then
+        if self:HunterGoNpc("Rika") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Find Rika",
+                "Find Rika"
+            )
+            q.Phase = "bandage"
+            q.NextAt = now + 0.35
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "bandage" then
+        local rika = self:HunterNpc("Rika")
+        local shop =
+            rika and rika:FindFirstChild("Rika's Shop")
+        local bandage =
+            shop and shop:FindFirstChild("Bandage", true)
+            or self:HunterObject("Bandage")
+        local cf = bandage and cframeOf(self, bandage)
+
+        if not cf then
+            q.NextAt = now + 0.8
+            self:SetStatus(q, "สอบนักล่า • รอ Bandage")
+            return true
+        end
+
+        teleport(self):Go(
+            CFrame.lookAt(
+                cf.Position + Vector3.new(0, 2.5, 2),
+                cf.Position
+            )
+        )
+        self:PressT(1)
+        q.Phase = "bandageBuy"
+        q.NextAt = now + 1.2
+        return true
+    end
+
+    if phase == "bandageBuy" then
+        self:Talk()
+        self:HunterFire(
+            "PurchaseFromShop",
+            "Bandage",
+            1
+        )
+        q.Phase = "klienTreat"
+        q.NextAt = now + 0.4
+        return true
+    end
+
+    if phase == "klienTreat" then
+        if self:HunterGoNpc("Klien") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Treat Klien",
+                "Treat Klien"
+            )
+            q.ManualReady = false
+            q.Phase = "manual"
+            q.NextAt = 0
+            self:SetStatus(
+                q,
+                "สอบนักล่า • ช่วงนี้ทำเอง • เสร็จแล้วกด Continue"
+            )
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    return true
+end
+
+function Quest:HunterExamDungeon(q, now)
+    local phase = q.Phase
+
+    if phase ~= "mizuto"
+        and phase ~= "lostFight"
+        and phase ~= "submergedKey"
+        and phase ~= "dungeonRoute"
+        and phase ~= "waitReturn"
+        and phase ~= "mizutoReturn"
+        and phase ~= "lavato"
+        and phase ~= "lavatoPath"
+        and phase ~= "lavatoReturn"
+        and phase ~= "leviPath"
+        and phase ~= "levi"
+        and phase ~= "survivalHover"
+        and phase ~= "survivalFight" then
+        return false
+    end
+
+    if now < (q.NextAt or 0) then
+        return true
+    end
+
+    if blocked(self) then return true end
+
+    if phase == "mizuto" then
+        if self:HunterGoNpc("Mizuto") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Find Mizuto",
+                "Find Mizuto"
+            )
+            q.Kills = 0
+            q.Phase = "lostFight"
+            q.NextAt = now + 0.35
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "lostFight" then
+        self:HunterStartFarm(
+            q,
+            function()
+                return self:HunterFindTarget(
+                    HUNTER_LOST_FIGHT,
+                    180,
+                    function(model)
+                        return model.Name == "Lost"
+                    end
+                )
+            end,
+            "สอบนักล่า • กำลังตี Lost"
+        )
+
+        self:WatchFarmTarget(q, 1)
+
+        if q.Kills >= 1 then
+            self:HunterStopFarm(q)
+            q.Phase = "submergedKey"
+            q.NextAt = now + 0.3
+        end
+        return true
+    end
+
+    if phase == "submergedKey" then
+        if self:HunterCollect(
+            q,
+            "Submerged Key1",
+            1,
+            "dungeonRoute",
+            now
+        ) then
+            q.RouteIndex = 1
+        end
+        return true
+    end
+
+    if phase == "dungeonRoute" then
+        local entry =
+            HUNTER_DUNGEON_ROUTE[
+                q.RouteIndex or 1
+            ]
+
+        if not entry then
+            q.Phase = "waitReturn"
+            q.NextAt = 0
+            self:SetStatus(
+                q,
+                "สอบนักล่า • รอผู้เล่นกลับมาจุด Mizuto"
+            )
+            return true
+        end
+
+        teleport(self):Go(CFrame.new(entry.Position))
+
+        if (entry.Hold or 0) > 0 then
+            self:PressT(entry.Hold)
+        end
+
+        q.RouteIndex = (q.RouteIndex or 1) + 1
+        q.NextAt =
+            now + math.max(entry.Hold or 0, 0.3) + 0.55
+        self:SetStatus(
+            q,
+            "สอบนักล่า • Dungeon "
+                .. tostring(q.RouteIndex - 1)
+                .. "/"
+                .. tostring(#HUNTER_DUNGEON_ROUTE)
+        )
+        return true
+    end
+
+    if phase == "waitReturn" then
+        local _, hum, root = aliveCharacter(self)
+        if not hum or hum.Health <= 0 or not root then
+            return true
+        end
+
+        if (root.Position - HUNTER_RETURN_POINT).Magnitude <= 200 then
+            q.Phase = "mizutoReturn"
+            q.NextAt = now + 0.2
+        else
+            self:SetStatus(
+                q,
+                "สอบนักล่า • รอกลับ Final Selection"
+            )
+        end
+        return true
+    end
+
+    if phase == "mizutoReturn" then
+        if self:HunterGoNpc("Mizuto") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "The Dungeon",
+                "Return to Mizuto"
+            )
+            q.Phase = "lavato"
+            q.NextAt = now + 0.4
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "lavato" then
+        if self:HunterGoNpc("Lavato") then
+            self:Talk()
+            self:HunterFire(
+                "QuestProgress",
+                "Find Lavato",
+                "Find Lavato"
+            )
+            q.PathIndex = 1
+            q.Phase = "lavatoPath"
+            q.NextAt = now + 0.4
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "lavatoPath" then
+        local position =
+            HUNTER_LAVATO_PATH[
+                q.PathIndex or 1
+            ]
+
+        if position then
+            teleport(self):Go(CFrame.new(position))
+            q.PathIndex = (q.PathIndex or 1) + 1
+            q.NextAt = now + 2
+        else
+            q.Phase = "lavatoReturn"
+            q.NextAt = 0
+        end
+        return true
+    end
+
+    if phase == "lavatoReturn" then
+        if self:HunterGoNpc("Lavato") then
+            self:HunterFire(
+                "QuestProgress",
+                "Find Lavato",
+                "Find Lavato"
+            )
+            self:Talk()
+            q.PathIndex = 1
+            q.Phase = "leviPath"
+            q.NextAt = now + 0.4
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "leviPath" then
+        local position =
+            HUNTER_LEVI_PATH[
+                q.PathIndex or 1
+            ]
+
+        if position then
+            teleport(self):Go(CFrame.new(position))
+            q.PathIndex = (q.PathIndex or 1) + 1
+            q.NextAt = now + 2
+        else
+            q.Phase = "levi"
+            q.NextAt = 0
+        end
+        return true
+    end
+
+    if phase == "levi" then
+        if self:HunterGoNpc("Levi") then
+            self:HunterFire(
+                "QuestProgress",
+                "Mountain Survival",
+                "Speak with Levi"
+            )
+            self:Talk()
+
+            teleport(self):Go(
+                CFrame.new(
+                    HUNTER_POSITIONS.Levi
+                    + Vector3.new(0, 80, 0)
+                )
+            )
+
+            q.Phase = "survivalHover"
+            q.NextAt = now + 30
+            self:SetStatus(
+                q,
+                "สอบนักล่า • Mountain Survival • รอ 30 วิ"
+            )
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "survivalHover" then
+        q.SawSurvivalTarget = false
+        q.Phase = "survivalFight"
+        q.NextAt = 0
+        return true
+    end
+
+    if phase == "survivalFight" then
+        local target =
+            self:HunterFindTarget(
+                HUNTER_POSITIONS.Levi,
+                220
+            )
+
+        if target then
+            q.SawSurvivalTarget = true
+            self:HunterStartFarm(
+                q,
+                function()
+                    return self:HunterFindTarget(
+                        HUNTER_POSITIONS.Levi,
+                        220
+                    )
+                end,
+                "สอบนักล่า • Mountain Survival • กำลังเคลียร์มอน"
+            )
+        elseif q.SawSurvivalTarget then
+            self:HunterStopFarm(q)
+            q.Phase = "rescue"
+            q.NextAt = now + 0.25
+        else
+            self:SetStatus(
+                q,
+                "สอบนักล่า • Mountain Survival • รอมอน"
+            )
+        end
+        return true
+    end
+
+    return true
+end
+
+function Quest:HunterExamFinal(q, now)
+    local phase = q.Phase
+
+    if phase ~= "rescue"
+        and phase ~= "rescueWait"
+        and phase ~= "steve"
+        and phase ~= "bossFight"
+        and phase ~= "bossLoot" then
+        return false
+    end
+
+    if now < (q.NextAt or 0) then
+        return true
+    end
+
+    if blocked(self) then return true end
+
+    if phase == "rescue" then
+        local rescue =
+            workspace:FindFirstChild(
+                "RescueCivilian",
+                true
+            )
+        local cf = rescue and cframeOf(self, rescue)
+
+        if not cf then
+            q.NextAt = now + 0.8
+            self:SetStatus(
+                q,
+                "สอบนักล่า • รอ RescueCivilian"
+            )
+            return true
+        end
+
+        teleport(self):Go(
+            CFrame.lookAt(
+                cf.Position + Vector3.new(0, 2.5, 2),
+                cf.Position
+            )
+        )
+        self:PressT(8)
+        q.Phase = "rescueWait"
+        q.NextAt = now + 8.5
+        return true
+    end
+
+    if phase == "rescueWait" then
+        teleport(self):Go(
+            CFrame.new(
+                HUNTER_POSITIONS.Levi
+                + Vector3.new(0, 3, 0)
+            )
+        )
+        q.Phase = "steve"
+        q.NextAt = now + 0.5
+        return true
+    end
+
+    if phase == "steve" then
+        if self:HunterGoNpc("Steve") then
+            self:HunterFire(
+                "QuestProgress",
+                "Find Steve",
+                "Find Steve"
+            )
+            self:Talk()
+            q.BossDead = false
+            q.Phase = "bossFight"
+            q.NextAt = now + 0.35
+        else
+            q.NextAt = now + 1
+        end
+        return true
+    end
+
+    if phase == "bossFight" then
+        local boss =
+            self:HunterFindTarget(
+                HUNTER_HAND_DEMON_CENTER,
+                450,
+                function(model)
+                    return model.Name == "Hand Demon"
+                end
+            )
+
+        if boss
+            and not q.BossWatch
+            and not q.BossDead then
+
+            local hum =
+                boss:FindFirstChildWhichIsA(
+                    "Humanoid",
+                    true
+                )
+            local root =
+                boss:FindFirstChild(
+                    "HumanoidRootPart",
+                    true
+                )
+
+            if hum then
+                q.BossWatch =
+                    hum.Died:Connect(function()
+                        q.BossDead = true
+                        q.BossDeathPosition =
+                            root
+                            and root.Position
+                            or HUNTER_HAND_DEMON_CENTER
+                    end)
+            end
+        end
+
+        self:HunterStartFarm(
+            q,
+            function()
+                return self:HunterBossTarget()
+            end,
+            "สอบนักล่า • Hand Demon • เคลียร์ลูกน้องก่อนบอส"
+        )
+
+        if q.BossDead then
+            self:HunterStopFarm(q)
+
+            if q.BossWatch then
+                pcall(function()
+                    q.BossWatch:Disconnect()
+                end)
+                q.BossWatch = nil
+            end
+
+            q.Phase = "bossLoot"
+            q.NextAt = now + 0.6
+        end
+        return true
+    end
+
+    if phase == "bossLoot" then
+        local loot =
+            self.Ctx.Modules
+            and self.Ctx.Modules.Loot
+
+        if not loot then
+            self:SetEnabled("HunterExam", false)
+            self:SetStatus(q, "สอบนักล่า • DONE")
+            return true
+        end
+
+        if not q.LootStarted then
+            q.RestoreLootEnabled = loot.Enabled == true
+
+            if not loot.Enabled then
+                loot:SetEnabled(true)
+            end
+
+            loot:BeginCollect(
+                q.BossDeathPosition
+                or HUNTER_HAND_DEMON_CENTER
+            )
+
+            q.LootStarted = true
+            q.NextAt = now + 0.7
+            self:SetStatus(
+                q,
+                "สอบนักล่า • เก็บของจาก Hand Demon"
+            )
+            return true
+        end
+
+        if loot.Busy then
+            return true
+        end
+
+        if q.RestoreLootEnabled == false then
+            loot:SetEnabled(false)
+        end
+
+        self:SetEnabled("HunterExam", false)
+        self:SetStatus(q, "สอบนักล่า • DONE")
+        return true
+    end
+
+    return true
+end
+
+function Quest:HunterExamStep(q, now)
+    local _, hum = aliveCharacter(self)
+
+    if not hum or hum.Health <= 0 then
+        self:SetStatus(q, "สอบนักล่า • รอตัวละครพร้อม")
+        return
+    end
+
+    if self:HunterExamEarly(q, now) then return end
+    if self:HunterExamDungeon(q, now) then return end
+    if self:HunterExamFinal(q, now) then return end
+
+    self:SetStatus(
+        q,
+        "สอบนักล่า • phase ไม่รู้จัก: "
+            .. tostring(q.Phase)
+    )
 end
 
 function Quest:AutoQuestSpec()
@@ -5356,6 +6498,8 @@ function Quest:Step()
         self:PagesStep(q, now)
     elseif name == "Bear" then
         self:BearStep(q, now)
+    elseif name == "HunterExam" then
+        self:HunterExamStep(q, now)
     elseif name == "DungeonUnlock" then
         self:DungeonUnlockStep(q, now)
     end
@@ -5482,12 +6626,12 @@ function Quest:Stop()
 end
 
 return Quest
-
 ]====]
 BUNDLED_SOURCES["dungeon.lua"] = [====[
 -- MazxhubModules/dungeon.lua
 local Dungeon = {
     Enabled = false,
+    OnEnabled = nil,
     Unlock = {
         Enabled = false,
         OnStatus = nil,
@@ -5661,6 +6805,9 @@ function Dungeon:SetEnabled(on)
 
     if not on then
         self.Enabled = false
+        if self.OnEnabled then
+            pcall(self.OnEnabled, false)
+        end
         self.Current = nil
         self.ApproachTarget = nil
         self.ApproachReadyAt = 0
@@ -5674,8 +6821,14 @@ function Dungeon:SetEnabled(on)
         return
     end
 
+    if type(f.StopConflicts) == "function" then
+        f:StopConflicts("Dungeon")
+    end
     if f.Enabled then f:Stop() end
     self.Enabled = true
+    if self.OnEnabled then
+        pcall(self.OnEnabled, true)
+    end
     self.Current = nil
     self.NextTargetAt = 0
     self.ApproachTarget = nil
@@ -5793,12 +6946,12 @@ function Dungeon:Stop()
 end
 
 return Dungeon
-
 ]====]
 BUNDLED_SOURCES["raid.lua"] = [====[
 -- MazxhubModules/raid.lua
 local Raid = {
     Enabled = false,
+    OnEnabled = nil,
     Phase = "idle",
     PointIndex = 1,
     SeenCount = 0,
@@ -5934,12 +7087,21 @@ function Raid:SetEnabled(on)
     local f = farm(self)
 
     if on then
+        if type(f.StopConflicts) == "function" then
+            f:StopConflicts("Raid")
+        end
         if f.Enabled then f:Stop() end
         if not self:SetPoint(1) then
             self:SetStatus("Raid Chest • ไม่มีพิกัด")
+            if self.OnEnabled then
+                pcall(self.OnEnabled, false)
+            end
             return
         end
         self.Enabled = true
+        if self.OnEnabled then
+            pcall(self.OnEnabled, true)
+        end
         self.Phase = "checkMove"
         self.NextAt = 0
         self.SeenCount = 0
@@ -5948,6 +7110,9 @@ function Raid:SetEnabled(on)
         self:SetStatus("Raid Chest • ON")
     else
         self.Enabled = false
+        if self.OnEnabled then
+            pcall(self.OnEnabled, false)
+        end
         self:FinishPrompt()
         if f.Enabled
             and (
@@ -6021,7 +7186,7 @@ function Raid:Step()
         local alive = f.farmFindMobsByName and f.farmFindMobsByName(self.MobKey) or {}
         if #alive > 0 then
             self.SeenCount = #alive
-            f:StartMob(self.MobKey)
+            f:StartMob(self.MobKey, "Raid")
             self.Phase = "fight"
             self.NextAt = now + 0.15
             return
@@ -6102,7 +7267,6 @@ function Raid:Stop()
 end
 
 return Raid
-
 ]====]
 BUNDLED_SOURCES["loot.lua"] = [====[
 -- MazxhubModules/loot.lua
@@ -6631,7 +7795,6 @@ function Loot:Stop()
 end
 
 return Loot
-
 ]====]
 BUNDLED_SOURCES["world.lua"] = [====[
 -- MazxhubModules/world.lua
@@ -7691,7 +8854,6 @@ function World:Stop()
 end
 
 return World
-
 ]====]
 BUNDLED_SOURCES["visuals.lua"] = [====[
 -- MazxhubModules/visuals.lua
@@ -8481,7 +9643,6 @@ function Visuals:Stop()
 end
 
 return Visuals
-
 ]====]
 BUNDLED_SOURCES["aimbot.lua"] = [====[
 -- MazxhubModules/aimbot.lua
@@ -8510,6 +9671,10 @@ local Aimbot = {
     NextNPCScan = 0,
     Target = nil,
     Connections = {},
+    FOVSegments = {},
+    FOVSegmentCount = 72,
+    FOVConnection = nil,
+    RenderName = nil,
 }
 
 local function rootOf(model)
@@ -8662,28 +9827,37 @@ function Aimbot:FindClosestTarget(camera)
 
         for _, record in ipairs(self.NPCs) do
             if record.Humanoid
-                and record.Humanoid.Health > 0
-                and record.Part
-                and record.Part.Parent then
+                and record.Humanoid.Parent
+                and record.Humanoid.Health > 0 then
 
-                local point, visible =
-                    camera:WorldToViewportPoint(
-                        record.Part.Position
-                    )
+                -- NPC parts can be replaced while the model is still alive.
+                -- Refresh the preferred part instead of keeping a stale Head/HRP.
+                local part =
+                    self:CandidatePart(record.Model)
+                    or record.Part
 
-                if visible and point.Z > 0 then
-                    local distance =
-                        (
-                            Vector2.new(
-                                point.X,
-                                point.Y
-                            )
-                            - center
-                        ).Magnitude
+                record.Part = part
 
-                    if distance <= bestDistance then
-                        bestDistance = distance
-                        best = record.Part
+                if part and part.Parent then
+                    local point, visible =
+                        camera:WorldToViewportPoint(
+                            part.Position
+                        )
+
+                    if visible and point.Z > 0 then
+                        local distance =
+                            (
+                                Vector2.new(
+                                    point.X,
+                                    point.Y
+                                )
+                                - center
+                            ).Magnitude
+
+                        if distance <= bestDistance then
+                            bestDistance = distance
+                            best = part
+                        end
                     end
                 end
             end
@@ -8696,28 +9870,73 @@ end
 function Aimbot:UpdateFOV(camera)
     if not self.FOVCircle then return end
 
-    local center = self:FOVCenter(camera)
-    local diameter = self.FOV * 2
+    local visible = self.ShowFOV == true
 
-    self.FOVCircle.Visible = self.ShowFOV
+    if not visible then
+        self.FOVCircle.Visible = false
+
+        if self.FOVCenterDot then
+            self.FOVCenterDot.Visible = false
+        end
+
+        for _, segment in ipairs(self.FOVSegments or {}) do
+            segment.Visible = false
+        end
+
+        return
+    end
+
+    if not camera then return end
+
+    local center = self:FOVCenter(camera)
+    local radius = math.max(10, tonumber(self.FOV) or 180)
+    local diameter = radius * 2
+
+    self.FOVCircle.Visible = true
     self.FOVCircle.Size =
         UDim2.fromOffset(diameter, diameter)
-
     self.FOVCircle.Position =
         UDim2.fromOffset(center.X, center.Y)
 
     if self.FOVCenterDot then
-        self.FOVCenterDot.Visible = self.ShowFOV
+        self.FOVCenterDot.Visible = true
         self.FOVCenterDot.Position =
             UDim2.fromOffset(center.X, center.Y)
+    end
+
+    local count = math.max(
+        8,
+        tonumber(self.FOVSegmentCount) or 72
+    )
+    local arcLength =
+        math.max(
+            5,
+            math.floor(
+                (
+                    2 * math.pi * radius / count
+                ) * 0.82
+            )
+        )
+
+    for index, segment in ipairs(self.FOVSegments or {}) do
+        local angle =
+            ((index - 1) / count)
+            * math.pi
+            * 2
+
+        local x = center.X + math.cos(angle) * radius
+        local y = center.Y + math.sin(angle) * radius
+
+        segment.Visible = true
+        segment.Position = UDim2.fromOffset(x, y)
+        segment.Size = UDim2.fromOffset(arcLength, 2)
+        segment.Rotation = math.deg(angle) + 90
     end
 end
 
 function Aimbot:Step()
     local camera = workspace.CurrentCamera
     if not camera then return end
-
-    self:UpdateFOV(camera)
 
     if not self:ShouldAim() then
         self.Target = nil
@@ -8762,6 +9981,10 @@ function Aimbot:SetShowFOV(on)
 
     if self.FOVCenterDot then
         self.FOVCenterDot.Visible = self.ShowFOV
+    end
+
+    for _, segment in ipairs(self.FOVSegments or {}) do
+        segment.Visible = self.ShowFOV
     end
 end
 
@@ -8811,6 +10034,7 @@ function Aimbot:Init(ctx)
     self.FOVCircle.BackgroundTransparency = 0.985
     self.FOVCircle.Visible = self.ShowFOV
     self.FOVCircle.Active = false
+    self.FOVCircle.ZIndex = 80
     self.FOVCircle.Parent = self.Gui
 
     local circleCorner = Instance.new("UICorner")
@@ -8822,7 +10046,30 @@ function Aimbot:Init(ctx)
         Color3.fromRGB(150, 220, 255)
     circleStroke.Thickness = 2
     circleStroke.Transparency = 0
+    circleStroke.ApplyStrokeMode =
+        Enum.ApplyStrokeMode.Border
     circleStroke.Parent = self.FOVCircle
+
+    -- Some clients/executors do not render UIStroke reliably on a
+    -- near-transparent rounded frame. Keep a segmented ring fallback.
+    self.FOVSegments = {}
+
+    for index = 1, self.FOVSegmentCount do
+        local segment = Instance.new("Frame")
+        segment.Name = "FOVSeg" .. tostring(index)
+        segment.AnchorPoint = Vector2.new(0.5, 0.5)
+        segment.Size = UDim2.fromOffset(12, 2)
+        segment.BackgroundColor3 =
+            Color3.fromRGB(150, 220, 255)
+        segment.BackgroundTransparency = 0.05
+        segment.BorderSizePixel = 0
+        segment.Visible = self.ShowFOV
+        segment.Active = false
+        segment.ZIndex = 81
+        segment.Parent = self.Gui
+
+        table.insert(self.FOVSegments, segment)
+    end
 
     self.FOVCenterDot = Instance.new("Frame")
     self.FOVCenterDot.Name = "FOVCenter"
@@ -8834,6 +10081,7 @@ function Aimbot:Init(ctx)
         Color3.fromRGB(150, 220, 255)
     self.FOVCenterDot.BorderSizePixel = 0
     self.FOVCenterDot.Visible = self.ShowFOV
+    self.FOVCenterDot.ZIndex = 82
     self.FOVCenterDot.Parent = self.Gui
 
     local dotCorner = Instance.new("UICorner")
@@ -8845,16 +10093,18 @@ function Aimbot:Init(ctx)
     table.insert(
         self.Connections,
         input.InputBegan:Connect(function(event, processed)
+            -- Alt only changes the visual/selection center and should still
+            -- work even while another UI is consuming keyboard input.
+            if event.KeyCode == Enum.KeyCode.LeftAlt
+                or event.KeyCode == Enum.KeyCode.RightAlt then
+                self.AltCenter = true
+            end
+
             if processed then return end
 
             if event.UserInputType ==
                 Enum.UserInputType.MouseButton2 then
                 self.RightMouseHeld = true
-            end
-
-            if event.KeyCode == Enum.KeyCode.LeftAlt
-                or event.KeyCode == Enum.KeyCode.RightAlt then
-                self.AltCenter = true
             end
 
             local keyName = event.KeyCode.Name
@@ -8888,11 +10138,56 @@ function Aimbot:Init(ctx)
 end
 
 function Aimbot:Start()
-    self.Ctx:RegisterJob(
-        "Aimbot",
-        0.02,
+    local ctx = self.Ctx
+    if not ctx then return end
+
+    local runService = ctx.Services.RunService
+
+    -- Remove the old Heartbeat job if this module is hot-reloaded from
+    -- an earlier modular version.
+    if type(ctx.RemoveJob) == "function" then
+        ctx:RemoveJob("Aimbot")
+    end
+
+    if self.FOVConnection then
+        pcall(function()
+            self.FOVConnection:Disconnect()
+        end)
+        self.FOVConnection = nil
+    end
+
+    if self.RenderName then
+        pcall(function()
+            runService:UnbindFromRenderStep(
+                self.RenderName
+            )
+        end)
+    end
+
+    self.RenderName =
+        "MazxhubAimbot_"
+        .. tostring(ctx.Player.UserId)
+
+    -- Keep the FOV renderer independent from aiming. The guide remains
+    -- responsive even when aiming is currently inactive.
+    self.FOVConnection =
+        runService.RenderStepped:Connect(function()
+            if self.Gui and self.Gui.Parent then
+                self:UpdateFOV(
+                    workspace.CurrentCamera
+                )
+            end
+        end)
+
+    -- Run immediately after Roblox's normal camera update. Heartbeat can
+    -- be overwritten by the camera script later in the same frame.
+    runService:BindToRenderStep(
+        self.RenderName,
+        Enum.RenderPriority.Camera.Value + 1,
         function()
-            self:Step()
+            if self.Gui and self.Gui.Parent then
+                self:Step()
+            end
         end
     )
 end
@@ -8901,8 +10196,36 @@ function Aimbot:Stop()
     self.Enabled = false
     self.SkillEnabled = false
     self.RightMouseHeld = false
+    self.AltCenter = false
     self.SkillHeld = {}
     self.Target = nil
+
+    local ctx = self.Ctx
+    local runService =
+        ctx
+        and ctx.Services
+        and ctx.Services.RunService
+
+    if ctx and type(ctx.RemoveJob) == "function" then
+        ctx:RemoveJob("Aimbot")
+    end
+
+    if runService and self.RenderName then
+        pcall(function()
+            runService:UnbindFromRenderStep(
+                self.RenderName
+            )
+        end)
+    end
+
+    self.RenderName = nil
+
+    if self.FOVConnection then
+        pcall(function()
+            self.FOVConnection:Disconnect()
+        end)
+        self.FOVConnection = nil
+    end
 
     for _, connection in ipairs(self.Connections) do
         pcall(function()
@@ -8916,10 +10239,13 @@ function Aimbot:Stop()
         self.Gui:Destroy()
         self.Gui = nil
     end
+
+    self.FOVCircle = nil
+    self.FOVCenterDot = nil
+    self.FOVSegments = {}
 end
 
 return Aimbot
-
 ]====]
 BUNDLED_SOURCES["settings.lua"] = [====[
 -- MazxhubModules/settings.lua
@@ -9121,7 +10447,6 @@ function Settings:Stop()
 end
 
 return Settings
-
 ]====]
 BUNDLED_SOURCES["ui.lua"] = [====[
 -- MazxhubModules/ui.lua
@@ -9925,7 +11250,8 @@ function UI:BuildMobFarmPage()
         farm:SetMob(selectedMob)
     end
 
-    local _, _, farmSetter = self:CreateSection(
+    local farmSetter
+    local _, _, farmSetterValue = self:CreateSection(
         left,
         "Mob farm (on/off)",
         farm.Enabled and not farm.BossEnabled,
@@ -9934,6 +11260,11 @@ function UI:BuildMobFarmPage()
                 if not selectedMob then
                     status.Text = "Select a mob first"
                     status.TextColor3 = T.Danger
+                    task.defer(function()
+                        if farmSetter then
+                            farmSetter(false, false)
+                        end
+                    end)
                     return
                 end
 
@@ -9957,6 +11288,21 @@ function UI:BuildMobFarmPage()
             end
         end
     )
+    farmSetter = farmSetterValue
+
+    farm.OnStateChanged = function(enabled, mode, owner)
+        local mobActive =
+            enabled == true
+            and mode == "Mob"
+            and owner == "Farm"
+
+        farmSetter(mobActive, false)
+
+        if not enabled and status.Parent then
+            status.Text = "Mob farm stopped"
+            status.TextColor3 = T.Sub
+        end
+    end
 
     local _, getMob, setMob = self:CreateDropdown(
         left,
@@ -11248,6 +12594,26 @@ function UI:BuildQuestsPage()
 
         self.QuestSetters[questName] = setter
 
+        if questName == "HunterExam" then
+            self:CreateButton(
+                entry.Side,
+                "▶ Continue หลังทำช่วง Manual",
+                function()
+                    local ok, message =
+                        quest:ContinueHunterExam()
+
+                    statusLabel.Text =
+                        message or (
+                            ok
+                            and "สอบนักล่า • ไปต่อแล้ว"
+                            or "สอบนักล่า • ยังไปต่อไม่ได้"
+                        )
+                    statusLabel.TextColor3 =
+                        ok and T.Mint or T.Gold
+                end
+            )
+        end
+
         if record then
             record.OnEnabled = function(on)
                 setter(on, false)
@@ -11290,7 +12656,7 @@ function UI:BuildDungeonPage()
 
     self:CreateSection(left, "Auto Dungeon")
 
-    self:CreateToggle(
+    local _, _, dungeonSetter = self:CreateToggle(
         left,
         "Auto Dungeon",
         dungeon.Enabled,
@@ -11302,6 +12668,14 @@ function UI:BuildDungeonPage()
             status.TextColor3 = on and T.Mint or T.Sub
         end
     )
+
+    dungeon.OnEnabled = function(on)
+        dungeonSetter(on, false)
+        status.Text = on
+            and "Auto Dungeon enabled"
+            or "Auto Dungeon disabled"
+        status.TextColor3 = on and T.Mint or T.Sub
+    end
 
     self:CreateSlider(
         left,
@@ -11424,7 +12798,7 @@ function UI:BuildRaidsPage()
         "Raid Chest • Auto Scan All Points"
     )
 
-    self:CreateToggle(
+    local _, _, raidSetter = self:CreateToggle(
         left,
         "Auto Raid Chest",
         raid.Enabled,
@@ -11432,6 +12806,14 @@ function UI:BuildRaidsPage()
             raid:SetEnabled(on)
         end
     )
+
+    raid.OnEnabled = function(on)
+        raidSetter(on, false)
+        status.Text = on
+            and "Raid Chest • ON"
+            or "Raid Chest • OFF"
+        status.TextColor3 = on and T.Mint or T.Sub
+    end
 
     self:CreateButton(
         left,
@@ -12615,8 +13997,6 @@ function UI:Stop()
 end
 
 return UI
-
-
 ]====]
 
 -- MazxhubModules/loader.lua
