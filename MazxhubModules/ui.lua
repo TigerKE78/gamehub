@@ -150,6 +150,51 @@ local function icon(parent, name, position, size, color)
     return canvas
 end
 
+local SectionIcons = {
+    ["Mob farm (on/off)"] = "Farm",
+    ["Boss Farm"] = "Combat",
+    ["Farm Boss All"] = "List",
+    ["Boss Selection"] = "List",
+    ["Aimbot"] = "Combat",
+    ["Combat"] = "Combat",
+    ["Targets"] = "Visuals",
+    ["Aimbot Skills"] = "Training",
+    ["Attack Settings"] = "Combat",
+    ["Auto Skills"] = "Training",
+    ["Movement"] = "Player",
+    ["Invisible"] = "Player",
+    ["Hitbox"] = "Combat",
+    ["Collision"] = "Defense",
+    ["Environment"] = "Themes",
+    ["NPCs — ทุกโซน"] = "Location",
+    ["Players"] = "Player",
+    ["วาปด่วน"] = "Location",
+    ["อื่น ๆ"] = "List",
+    ["Npc LV 1-7"] = "Location",
+    ["Pushups"] = "Training",
+    ["Cup Game"] = "Training",
+    ["ปราณสายฟ้า"] = "Training",
+    ["ภาษา"] = "Config",
+    ["Player labels"] = "Visuals",
+    ["Performance / ประสิทธิภาพ"] = "Performance",
+    ["Interface"] = "Menu",
+    ["Auto Quest ตามมอน/บอส"] = "List",
+    ["Auto Dungeon"] = "Dungeon",
+    ["Dungeon Combat"] = "Combat",
+    ["Quest unlock Dungeon • Lv65+"] = "Lock",
+    ["Raid Chest • Auto Scan All Points"] = "Dungeon",
+    ["Saved Raid Points"] = "List",
+    ["ESP ผู้เล่น"] = "Visuals",
+    ["ESP NPC ใน ActiveNpcs"] = "Visuals",
+    ["ESP บอสทั้งหมด (เปิด/ปิด)"] = "Visuals",
+    ["Runtime"] = "Performance",
+    ["Boss Spawn Status"] = "Performance",
+    ["สถานะบอส / เวลาเกิด"] = "List",
+    ["Boss List"] = "List",
+    ["Discord"] = "Webhook",
+    ["Notifications"] = "Webhook",
+}
+
 function UI:Connect(signal, callback)
     local connection = signal:Connect(callback)
     table.insert(self.Connections, connection)
@@ -232,6 +277,11 @@ function UI:SetOpen(state)
     if self.Main then
         self.Main.Visible = self.IsOpen
     end
+
+    if self.Fab then
+        self.Fab.BackgroundColor3 =
+            self.IsOpen and T.CardHover or T.Card
+    end
 end
 
 function UI:CreateSection(parent, titleText, default, callback)
@@ -265,7 +315,13 @@ function UI:CreateSection(parent, titleText, default, callback)
         Position = UDim2.new(0, 11, 0.5, 0),
     }, frame)
     dot:Destroy()
-    icon(frame,"List",UDim2.fromOffset(7,9),17,T.Accent)
+    icon(
+        frame,
+        SectionIcons[titleText] or "List",
+        UDim2.fromOffset(7, 9),
+        17,
+        T.Accent
+    )
     title.Position=UDim2.fromOffset(31,0)
     title.Font=Enum.Font.Code
     title.Size=UDim2.new(1,callback and -85 or -60,1,0)
@@ -699,41 +755,41 @@ function UI:CreateSearchRow(parent, placeholder, onSearch)
 end
 
 function UI:CreatePage(name)
-    local page = new("Frame", {
+    local page = new("ScrollingFrame", {
         Name = name,
         Visible = false,
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, -94),
-        Position = UDim2.new(0, 0, 0, 94),
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.new(),
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = T.Accent,
+        ScrollingDirection = Enum.ScrollingDirection.Y,
     }, self.Right)
 
     local columns = {}
 
     for index = 1, 2 do
-        local column = new("ScrollingFrame", {
-            Size = UDim2.new(0.5, -24, 1, -12),
+        local column = new("Frame", {
+            Size = UDim2.new(0.5, -7, 0, 0),
             Position = UDim2.new(
-                0.5 * (index - 1),
-                index == 1 and 16 or 8,
+                (index - 1) * 0.5,
+                index == 1 and 0 or 4,
                 0,
-                0
+                1
             ),
-            BackgroundColor3 = T.Card,
+            AutomaticSize = Enum.AutomaticSize.Y,
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
-            ScrollBarThickness = 3,
-            ScrollBarImageColor3 = T.AccentSoft,
-            CanvasSize = UDim2.new(),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            ScrollingDirection = Enum.ScrollingDirection.Y,
         }, page)
-        corner(column, 7)
-        -- Card outlines are added per section.
+
         new("UIListLayout", {
-            Padding = UDim.new(0, 6),
+            Padding = UDim.new(0, 9),
             SortOrder = Enum.SortOrder.LayoutOrder,
         }, column)
-        pad(column, 8, 16, 8, 8)
+
         columns[index] = column
     end
 
@@ -745,7 +801,6 @@ function UI:CreatePage(name)
 
     return columns[1], columns[2]
 end
-
 function UI:CreatePlaceholderPage(name, message)
     local left, right = self:CreatePage(name)
     self:CreateSection(left, name)
@@ -2834,24 +2889,117 @@ function UI:FilterControls()
 end
 
 function UI:BuildPages()
+    -- Build the existing functional pages first. They are then composed
+    -- into the reference navigation: Home/Main/Farm/Dungeon/Visuals/Player/Webhook/Config.
     self:BuildMobFarmPage()
     self:BuildBossFarmPage()
     self:BuildQuestsPage()
     self:BuildDungeonPage()
     self:BuildRaidsPage()
     self:BuildStatusPage()
-
     self:BuildWorldPage()
     self:BuildTeleportPage()
-
     self:BuildPlayerPage()
     self:BuildCombatPage()
     self:BuildVisualsPage()
     self:BuildSkillPage()
-
     self:BuildSettingsPage()
+
+    for _, name in ipairs({
+        "Home",
+        "Main",
+        "Farm",
+        "Webhook",
+        "Config",
+    }) do
+        if not self.Pages[name] then
+            self:CreatePage(name)
+        end
+    end
+
+    local webhookLeft, webhookRight =
+        self.Pages.Webhook.Left,
+        self.Pages.Webhook.Right
+
+    self:CreateSection(webhookLeft, "Discord")
+    local info = label(
+        webhookLeft,
+        "Webhook backend ยังไม่มีในโมดูลชุดปัจจุบัน\nหน้านี้คงไว้ตาม UI ต้นแบบ และจะไม่ส่ง network เอง",
+        11,
+        T.Sub,
+        Enum.Font.Gotham,
+        nil,
+        UDim2.new(1, 0, 0, 54)
+    )
+    info.TextWrapped = true
+
+    self:CreateSection(webhookRight, "Notifications")
+    local info2 = label(
+        webhookRight,
+        "Boss killed\nItem looted\nQuest completed\nChest opened",
+        11,
+        T.Sub,
+        Enum.Font.Code,
+        nil,
+        UDim2.new(1, 0, 0, 70)
+    )
+    info2.TextWrapped = true
 end
 
+function UI:ComposePages()
+    local function movePage(sourceName, targetName)
+        if sourceName == targetName then return end
+
+        local source = self.Pages[sourceName]
+        local target = self.Pages[targetName]
+        if not source or not target then return end
+
+        for _, side in ipairs({ "Left", "Right" }) do
+            local sourceColumn = source[side]
+            local targetColumn = target[side]
+            if sourceColumn and targetColumn then
+                local order = 0
+                for _, child in ipairs(targetColumn:GetChildren()) do
+                    if child:IsA("GuiObject") then
+                        order = math.max(order, child.LayoutOrder)
+                    end
+                end
+
+                for _, child in ipairs(sourceColumn:GetChildren()) do
+                    if child:IsA("GuiObject") then
+                        order += 1
+                        child.LayoutOrder = order
+                        child.Parent = targetColumn
+                    end
+                end
+            end
+        end
+
+        source.Frame.Visible = false
+    end
+
+    -- Home = runtime/status.
+    movePage("Status", "Home")
+
+    -- Main = combat + skill + training/world.
+    movePage("Combat", "Main")
+    movePage("Skill", "Main")
+    movePage("World", "Main")
+
+    -- Farm = mob + boss + quests + raids.
+    movePage("Mob Farm", "Farm")
+    movePage("Boss Farm", "Farm")
+    movePage("Quests", "Farm")
+    movePage("Raids", "Farm")
+
+    -- Dungeon and Visuals already use the desired page names.
+
+    -- Player also contains teleport controls.
+    movePage("Teleport", "Player")
+
+    -- Config uses the existing Settings controls.
+    movePage("Settings", "Config")
+end
 function UI:HideAllPages()
     for _, data in pairs(self.Pages) do
         data.Frame.Visible = false
@@ -2859,175 +3007,162 @@ function UI:HideAllPages()
 end
 
 function UI:SelectSubTab(name)
+    -- Compatibility shim: old sub-tab calls now select the matching page directly.
+    if self.Pages[name] then
+        self:SelectMenu(name)
+    end
+end
+function UI:MenuTabs(menuName)
+    -- Kept for compatibility with older callers. The reference layout
+    -- uses one page per sidebar item and no top sub-tabs.
+    return { menuName }
+end
+function UI:BuildTabs(menuName)
+    -- No top sub-tabs in the supplied MazaSpace reference layout.
+    self.ActiveSubTab = menuName
+end
+function UI:SelectMenu(menuName)
     self:CloseDropdown()
     self:HideAllPages()
 
-    local page = self.Pages[name]
+    self.ActiveMenu = menuName
+    self.ActiveSubTab = menuName
+
+    local page = self.Pages[menuName]
     if page then
         page.Frame.Visible = true
-        page.Left.CanvasPosition = Vector2.zero
-        page.Right.CanvasPosition = Vector2.zero
+        page.Frame.CanvasPosition = Vector2.zero
     end
 
-    self.ActiveSubTab = name
     self:FilterControls()
 
-    for tabName, data in pairs(self.TabButtons or {}) do
-        local active = tabName == name
-        tween(data.Button, {
-            BackgroundTransparency = active and 0 or 1,
-        })
-        tween(data.Label, {
-            TextColor3 = active and T.Accent or T.Sub,
-        })
-        tween(data.Underline, {
-            BackgroundTransparency = active and 0 or 1,
-        })
-    end
-end
+    for name, data in pairs(self.NavButtons or {}) do
+        local active = name == menuName
+        data.Button.BackgroundTransparency = active and 0 or 1
+        data.Button.BackgroundColor3 = active and T.Card or T.Sidebar
 
-function UI:MenuTabs(menuName)
-    if menuName == "Farm" then
-        return {
-            "Mob Farm",
-            "Boss Farm",
-            "Quests",
-            "Dungeon",
-            "Raids",
-            "Status",
-        }
-    end
-
-    if menuName == "World" then
-        return { "World", "Teleport" }
-    end
-
-    if menuName == "Player" then
-        return { "Player", "Combat", "Visuals", "Skill" }
-    end
-
-    return { "Settings" }
-end
-
-function UI:BuildTabs(menuName)
-    for _, child in ipairs(self.Tabs:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
+        for _, part in ipairs(data.Icon:GetDescendants()) do
+            if part:IsA("Frame") then
+                part.BackgroundColor3 = active and T.Accent or T.Sub
+            end
         end
+
+        data.Label.TextColor3 = active and T.Text or T.Sub
     end
+end
+function UI:BuildSidebar()
+    self.Nav = new("ScrollingFrame", {
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.new(),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ScrollBarThickness = 0,
+    }, self.Sidebar)
 
-    self.TabButtons = {}
+    self.NavLayout = new("UIListLayout", {
+        Padding = UDim.new(0, 0),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, self.Nav)
 
-    local tabs = self:MenuTabs(menuName)
+    local entries = {
+        { "Home", "Home" },
+        { "Main", "Main" },
+        { "Farm", "Farm" },
+        { "Dungeon", "Dungeon" },
+        { "Visuals", "Visuals" },
+        { "Player", "Player" },
+        { "Webhook", "Webhook" },
+        { "Config", "Config" },
+    }
 
-    for index, name in ipairs(tabs) do
-        local button = new("TextButton", {
-            Size = UDim2.fromOffset(78, 31),
+    for _, entry in ipairs(entries) do
+        local name, iconName = entry[1], entry[2]
+        local navButton = new("TextButton", {
+            Size = UDim2.new(1, 0, 0, 40),
             BackgroundColor3 = T.Card,
             BackgroundTransparency = 1,
+            BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
-        }, self.Tabs)
-        corner(button, 8)
+        }, self.Nav)
 
-        local textLabel = label(
-            button,
-            name,
-            12,
-            T.Sub,
-            Enum.Font.GothamMedium,
-            nil,
-            UDim2.fromScale(1, 1)
+        local symbol = icon(
+            navButton,
+            iconName,
+            UDim2.fromOffset(14, 10),
+            19,
+            T.Sub
         )
-        textLabel.TextXAlignment = Enum.TextXAlignment.Center
 
-        local underline = new("Frame", {
-            AnchorPoint = Vector2.new(0.5, 1),
-            Position = UDim2.new(0.5, 0, 1, -1),
-            Size = UDim2.new(1, -28, 0, 2),
-            BackgroundColor3 = T.Accent,
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-        }, button)
-        corner(underline, 2)
+        local title = label(
+            navButton,
+            name,
+            13,
+            T.Sub,
+            Enum.Font.Gotham,
+            UDim2.fromOffset(44, 0),
+            UDim2.new(1, -46, 1, 0)
+        )
 
-        self.TabButtons[name] = {
-            Button = button,
-            Label = textLabel,
-            Underline = underline,
+        self.NavButtons[name] = {
+            Button = navButton,
+            Icon = symbol,
+            Label = title,
         }
 
-        button.Activated:Connect(function()
-            self:SelectSubTab(name)
+        self:Connect(navButton.Activated, function()
+            self:SelectMenu(name)
         end)
-
-        if index == 1 then
-            task.defer(function()
-                self:SelectSubTab(name)
-            end)
-        end
     end
 end
-
-function UI:SelectMenu(menuName)
-    self:CloseDropdown()
-    self.ActiveMenu = menuName
-    self:BuildTabs(menuName)
-
-    for name, data in pairs(self.NavButtons) do
-        local active = name == menuName
-        tween(data.Button, {
-            BackgroundColor3 = active and T.AccentSoft or T.Sidebar,
-        })
-        for _,part in ipairs(data.Icon:GetDescendants()) do
-            if part:IsA("Frame") then part.BackgroundColor3=active and T.Accent or T.Sub end
-        end
-        tween(data.Label, {
-            TextColor3 = active and T.Text or T.Sub,
-        })
-    end
-end
-
-function UI:BuildSidebar()
-    local head=new("Frame",{Size=UDim2.new(1,0,0,51),BackgroundTransparency=1},self.Sidebar)
-    self.SidebarHead=head
-    self.SidebarAvatar=icon(head,"M",UDim2.fromOffset(16,12),27,T.Accent)
-    self.SidebarBrand=label(head,"MazaSpace",18,T.Text,Enum.Font.Code,UDim2.fromOffset(53,0),UDim2.new(1,-54,1,0))
-    self.SidebarDivider=new("Frame",{Size=UDim2.new(1,0,0,1),Position=UDim2.fromOffset(0,50),BackgroundColor3=T.Stroke,BorderSizePixel=0},head)
-    self.Nav=new("ScrollingFrame",{Size=UDim2.new(1,0,1,-100),Position=UDim2.fromOffset(0,58),BackgroundTransparency=1,
-        BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=0},self.Sidebar)
-    self.NavLayout=new("UIListLayout",{Padding=UDim.new(0,2),SortOrder=Enum.SortOrder.LayoutOrder},self.Nav)
-    for _,entry in ipairs({{"Farm","Farm"},{"World","Location"},{"Player","Player"},{"Setting","Config"}}) do
-        local name=entry[1]
-        local button=new("TextButton",{Size=UDim2.new(1,0,0,42),BackgroundColor3=T.Sidebar,BorderSizePixel=0,Text="",AutoButtonColor=false},self.Nav)
-        local symbol=icon(button,entry[2],UDim2.fromOffset(15,11),20,T.Accent)
-        local title=label(button,name=="Setting" and "Settings" or name,13,T.Sub,Enum.Font.Gotham,UDim2.fromOffset(46,0),UDim2.new(1,-48,1,0))
-        self.NavButtons[name]={Button=button,Icon=symbol,Label=title}
-        button.Activated:Connect(function() self:SelectMenu(name) end)
-    end
-    self.MenuHint=label(self.Sidebar,"Shift / M",11,T.Sub,Enum.Font.Code,UDim2.new(0,16,1,-31),UDim2.new(1,-32,0,20))
-end
-
 function UI:BuildTop()
+    self.DragHandle = new("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        Position = UDim2.new(),
+        BackgroundTransparency = 1,
+        Active = true,
+        ZIndex = 0,
+    }, self.Top)
+
+    local topIcon = icon(
+        self.Top,
+        "Combat",
+        UDim2.fromOffset(28, 14),
+        23,
+        T.Accent
+    )
+    topIcon.ZIndex = 2
+
+    self.TopBrand = label(
+        self.Top,
+        "MazaSpace",
+        19,
+        T.Text,
+        Enum.Font.Code,
+        UDim2.fromOffset(62, 0),
+        UDim2.fromOffset(156, 50)
+    )
+    self.TopBrand.ZIndex = 2
+
     self.Search = new("Frame", {
-        Size = UDim2.fromOffset(192, 34),
-        Position = UDim2.fromOffset(16, 14),
+        Size = UDim2.new(1, -274, 0, 33),
+        Position = UDim2.fromOffset(226, 9),
         BackgroundColor3 = T.Card,
         BorderSizePixel = 0,
+        ZIndex = 3,
     }, self.Top)
-    corner(self.Search, 6)
+    corner(self.Search, 4)
     stroke(self.Search, T.Stroke, 1)
 
-    local searchIcon = label(
+    icon(
         self.Search,
-        "⌕",
-        12,
-        T.Sub,
-        Enum.Font.GothamBold,
-        UDim2.fromOffset(10, 0),
-        UDim2.fromOffset(18, 34)
+        "Search",
+        UDim2.fromOffset(9, 8),
+        17,
+        T.Sub
     )
-    searchIcon.TextXAlignment = Enum.TextXAlignment.Center
 
     local searchBox = new("TextBox", {
         BackgroundTransparency = 1,
@@ -3036,100 +3171,31 @@ function UI:BuildTop()
         PlaceholderColor3 = T.Sub,
         TextColor3 = T.Text,
         TextSize = 12,
-        Font = Enum.Font.Gotham,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.fromOffset(30, 0),
-        Size = UDim2.new(1, -38, 1, 0),
+        Font = Enum.Font.Code,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        Position = UDim2.fromOffset(28, 0),
+        Size = UDim2.new(1, -34, 1, 0),
         ClearTextOnFocus = false,
+        ZIndex = 4,
     }, self.Search)
 
-    local tech = label(
+    local moveIcon = icon(
         self.Top,
-        "CONTROL  //  PANEL",
-        10,
-        T.Sub,
-        Enum.Font.Code,
-        UDim2.fromOffset(222, 15),
-        UDim2.fromOffset(150, 30)
+        "Move",
+        UDim2.new(1, -36, 0, 14),
+        23,
+        T.Stroke
     )
+    moveIcon.ZIndex = 2
 
-    local hub = label(
-        self.Top,
-        "MazaSpace",
-        16,
-        T.Accent,
-        Enum.Font.GothamBold,
-        UDim2.new(1, -176, 0, 15),
-        UDim2.fromOffset(120, 30)
+    self.SearchBox = searchBox
+    self:Connect(
+        searchBox:GetPropertyChangedSignal("Text"),
+        function()
+            self:FilterControls()
+        end
     )
-    hub.TextXAlignment = Enum.TextXAlignment.Right
-
-    local close = new("TextButton", {
-        Size = UDim2.fromOffset(32, 32),
-        Position = UDim2.new(1, -40, 0, 13),
-        BackgroundColor3 = T.Card,
-        BorderSizePixel = 0,
-        Text = "✕",
-        TextColor3 = T.Sub,
-        TextSize = 13,
-        Font = Enum.Font.GothamBold,
-        AutoButtonColor = false,
-    }, self.Top)
-    corner(close, 8)
-
-    close.MouseEnter:Connect(function()
-        tween(close, {
-            BackgroundColor3 = T.Danger,
-            TextColor3 = T.Text,
-        })
-    end)
-
-    close.MouseLeave:Connect(function()
-        tween(close, {
-            BackgroundColor3 = T.Card,
-            TextColor3 = T.Sub,
-        })
-    end)
-
-    close.Activated:Connect(function()
-        self:SetOpen(false)
-    end)
-
-    self.Tabs = new("ScrollingFrame", {
-        Size = UDim2.new(1, -32, 0, 34),
-        Position = UDim2.new(0, 16, 0, 54),
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0,
-        CanvasSize = UDim2.new(),
-        AutomaticCanvasSize = Enum.AutomaticSize.X,
-        ScrollingDirection = Enum.ScrollingDirection.X,
-        ScrollBarThickness = 2,
-        ScrollBarImageColor3 = T.AccentSoft,
-    }, self.Top)
-
-    new("UIListLayout", {
-        FillDirection = Enum.FillDirection.Horizontal,
-        Padding = UDim.new(0, 4),
-        VerticalAlignment = Enum.VerticalAlignment.Center,
-    }, self.Tabs)
-
-    self.SearchBox=searchBox
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function() self:FilterControls() end)
-
-    self.DragHandle = new("Frame", {
-        Size = UDim2.new(1, -250, 0, 48),
-        Position = UDim2.fromOffset(212, 0),
-        BackgroundTransparency = 1,
-        Active = true,
-    }, self.Top)
-
-    tech.ZIndex = 2
-    hub.ZIndex = 2
-    self.TechCaption = tech
-    self.HubName = hub
-    self.CloseButton = close
 end
-
 function UI:LayoutFor(width, height)
     local compact = width < 700 or height < 430
     return {
@@ -3210,163 +3276,161 @@ function UI:Layout(recenter)
 
     self:CloseDropdown()
 
-    local layout = self:LayoutFor(size.X, size.Y)
-    self.Compact = layout.Compact
-    self.Main.Size = UDim2.fromOffset(layout.Width, layout.Height)
+    local scaleValue = math.min(
+        1,
+        math.max(0.45, (size.X - 24) / 724),
+        math.max(0.45, (size.Y - 70) / 604)
+    )
 
-    local center
+    if self.UIScale then
+        self.UIScale.Scale = scaleValue
+    end
 
     if recenter then
-        center = Vector2.new(size.X * 0.5, size.Y * 0.5)
+        self.Main.Position =
+            UDim2.fromOffset(size.X * 0.5, size.Y * 0.5)
     else
-        center = Vector2.new(
-            self.Main.Position.X.Scale * size.X + self.Main.Position.X.Offset,
-            self.Main.Position.Y.Scale * size.Y + self.Main.Position.Y.Offset
+        local x =
+            self.Main.Position.X.Scale * size.X
+            + self.Main.Position.X.Offset
+        local y =
+            self.Main.Position.Y.Scale * size.Y
+            + self.Main.Position.Y.Offset
+
+        local visibleWidth = 724 * scaleValue
+        local visibleHeight = 604 * scaleValue
+
+        x = math.clamp(
+            x,
+            visibleWidth * 0.5,
+            math.max(visibleWidth * 0.5, size.X - visibleWidth * 0.5)
         )
-        center = self:ClampWindowPoint(
-            center.X,
-            center.Y,
-            layout.Width,
-            layout.Height,
-            size.X,
-            size.Y
+        y = math.clamp(
+            y,
+            visibleHeight * 0.5,
+            math.max(visibleHeight * 0.5, size.Y - visibleHeight * 0.5)
         )
+
+        self.Main.Position = UDim2.fromOffset(x, y)
     end
-
-    self.Main.Position = UDim2.fromOffset(center.X, center.Y)
-
-    if self.SidebarAvatar then
-        self.SidebarAvatar.Visible = not self.Compact
-    end
-    if self.SidebarBrand then
-        self.SidebarBrand.Visible = not self.Compact
-    end
-    if self.SidebarDivider then
-        self.SidebarDivider.Visible = not self.Compact
-    end
-    if self.MenuHint then
-        self.MenuHint.Visible = not self.Compact
-    end
-
-    self.Sidebar.Size =
-        self.Compact
-        and UDim2.new(1, 0, 0, 52)
-        or UDim2.new(0, 184, 1, 0)
-
-    if self.Nav then
-        self.Nav.Size =
-            self.Compact
-            and UDim2.new(1, 0, 0, 50)
-            or UDim2.new(1, 0, 1, -112)
-
-        self.Nav.Position =
-            self.Compact
-            and UDim2.fromOffset(0, 2)
-            or UDim2.fromOffset(0, 56)
-
-        self.Nav.ScrollingDirection =
-            self.Compact
-            and Enum.ScrollingDirection.X
-            or Enum.ScrollingDirection.Y
-
-        self.Nav.AutomaticCanvasSize =
-            self.Compact
-            and Enum.AutomaticSize.X
-            or Enum.AutomaticSize.Y
-    end
-
-    if self.NavLayout then
-        self.NavLayout.FillDirection =
-            self.Compact
-            and Enum.FillDirection.Horizontal
-            or Enum.FillDirection.Vertical
-    end
-
-    for _, data in pairs(self.NavButtons) do
-        data.Button.Size =
-            self.Compact
-            and UDim2.fromOffset(110, 44)
-            or UDim2.fromOffset(184, 42)
-    end
-
-    self.Right.Size =
-        self.Compact
-        and UDim2.new(1, 0, 1, -52)
-        or UDim2.new(1, -184, 1, 0)
-
-    self.Right.Position =
-        self.Compact
-        and UDim2.fromOffset(0, 52)
-        or UDim2.fromOffset(184, 0)
-
-    if self.Search then
-        self.Search.Visible = not self.Compact
-    end
-    if self.TechCaption then self.TechCaption.Visible=false end
-    if self.HubName then self.HubName.Visible=self.Compact end
-    if self.Search then self.Search.Size=UDim2.new(1,-68,0,32); self.Search.Position=UDim2.fromOffset(12,10) end
-    if self.DragHandle then self.DragHandle.Visible=false end
-
-    self:ApplyColumns()
 
     local point = self:ClampPoint(
-        self.Fab.Position.X.Scale * size.X + self.Fab.Position.X.Offset,
-        self.Fab.Position.Y.Scale * size.Y + self.Fab.Position.Y.Offset,
+        self.Fab.Position.X.Scale * size.X
+            + self.Fab.Position.X.Offset,
+        self.Fab.Position.Y.Scale * size.Y
+            + self.Fab.Position.Y.Offset,
         52,
         52,
         size.X,
         size.Y,
-        false
+        true
     )
 
-    self.Fab.Position = UDim2.fromOffset(point.X, point.Y)
+    self.Fab.Position =
+        UDim2.fromOffset(point.X, point.Y)
 end
-
 function UI:BindDrag()
-    local inputService=self.Ctx.Services.UserInputService
-    local function bind(handle,target,launcher)
+    local inputService = self.Ctx.Services.UserInputService
+
+    local function bind(handle, target, launcher)
+        if not handle or not target then return end
+
         local gesture
-        handle.Active=true
-        self:Connect(handle.InputBegan,function(input)
+        handle.Active = true
+
+        self:Connect(handle.InputBegan, function(input)
             if gesture then return end
-            if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
-                gesture={Input=input,Start=input.Position,Position=target.Position,Moved=false}
+            if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                gesture = {
+                    Input = input,
+                    Start = input.Position,
+                    Position = target.Position,
+                    Moved = false,
+                }
                 self:CloseDropdown()
             end
         end)
-        self:Connect(inputService.InputChanged,function(input)
-            local g=gesture
+
+        self:Connect(inputService.InputChanged, function(input)
+            local g = gesture
             if not g then return end
-            if input==g.Input or (g.Input.UserInputType==Enum.UserInputType.MouseButton1 and input.UserInputType==Enum.UserInputType.MouseMovement) then
-                local delta=input.Position-g.Start
-                if delta.Magnitude>=6 then g.Moved=true end
+
+            if input == g.Input
+                or (
+                    g.Input.UserInputType == Enum.UserInputType.MouseButton1
+                    and input.UserInputType == Enum.UserInputType.MouseMovement
+                ) then
+
+                local delta = input.Position - g.Start
+                if delta.Magnitude >= 6 then
+                    g.Moved = true
+                end
+
                 if g.Moved then
-                    local bounds=self.Surface.AbsoluteSize
-                    local x=g.Position.X.Scale*bounds.X+g.Position.X.Offset+delta.X
-                    local y=g.Position.Y.Scale*bounds.Y+g.Position.Y.Offset+delta.Y
+                    local bounds = self.Surface.AbsoluteSize
+                    local x =
+                        g.Position.X.Scale * bounds.X
+                        + g.Position.X.Offset
+                        + delta.X
+                    local y =
+                        g.Position.Y.Scale * bounds.Y
+                        + g.Position.Y.Offset
+                        + delta.Y
+
                     local pos
-                    if launcher then pos=self:ClampPoint(x,y,52,52,bounds.X,bounds.Y,false)
-                    else pos=self:ClampWindowPoint(x,y,target.AbsoluteSize.X,target.AbsoluteSize.Y,bounds.X,bounds.Y) end
-                    target.Position=UDim2.fromOffset(pos.X,pos.Y)
+                    if launcher then
+                        pos = self:ClampPoint(
+                            x, y, 52, 52,
+                            bounds.X, bounds.Y, true
+                        )
+                    else
+                        pos = self:ClampWindowPoint(
+                            x, y,
+                            target.AbsoluteSize.X,
+                            target.AbsoluteSize.Y,
+                            bounds.X,
+                            bounds.Y
+                        )
+                    end
+
+                    target.Position =
+                        UDim2.fromOffset(pos.X, pos.Y)
                 end
             end
         end)
-        self:Connect(inputService.InputEnded,function(input)
-            local g=gesture
+
+        self:Connect(inputService.InputEnded, function(input)
+            local g = gesture
             if not g then return end
-            if input==g.Input or (g.Input.UserInputType==Enum.UserInputType.MouseButton1 and input.UserInputType==Enum.UserInputType.MouseButton1) then
-                gesture=nil
-                if launcher and not g.Moved and (input.Position-g.Start).Magnitude<6 then self:SetOpen(not self.IsOpen) end
+
+            if input == g.Input
+                or (
+                    g.Input.UserInputType == Enum.UserInputType.MouseButton1
+                    and input.UserInputType == Enum.UserInputType.MouseButton1
+                ) then
+
+                gesture = nil
+
+                if launcher
+                    and not g.Moved
+                    and (input.Position - g.Start).Magnitude < 6 then
+                    self:SetOpen(not self.IsOpen)
+                end
             end
         end)
-        self:Connect(inputService.WindowFocusReleased,function() gesture=nil end)
-    end
-    bind(self.SidebarHead,self.Main,false)
-    local strip=new("Frame",{Size=UDim2.new(1,0,0,8),BackgroundTransparency=1,Active=true,ZIndex=25},self.Top)
-    bind(strip,self.Main,false)
-    bind(self.Fab,self.Fab,true)
-end
 
+        self:Connect(
+            inputService.WindowFocusReleased,
+            function()
+                gesture = nil
+            end
+        )
+    end
+
+    bind(self.DragHandle, self.Main, false)
+    bind(self.Fab, self.Fab, true)
+end
 function UI:Init(ctx)
     self.Ctx = ctx
     self.Pages = {}
@@ -3384,13 +3448,24 @@ function UI:Start()
     local playerGui =
         self.Ctx.Player:WaitForChild("PlayerGui")
 
-    local old = playerGui:FindFirstChild("MazxhubModulesUI")
-    if old then old:Destroy() end
+    for _, guiName in ipairs({
+        "MazxhubModulesUI",
+        "MazaSpaceUI",
+        "SottoroUI",
+    }) do
+        local old = playerGui:FindFirstChild(guiName)
+        if old then old:Destroy() end
+    end
+
+    self.NavButtons = {}
+    self.Pages = {}
+    self.Cards = {}
+    self.Connections = {}
 
     self.Gui = new("ScreenGui", {
         Name = "MazxhubModulesUI",
         ResetOnSpawn = false,
-        IgnoreGuiInset = true,
+        IgnoreGuiInset = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         DisplayOrder = 50,
     }, playerGui)
@@ -3402,9 +3477,10 @@ function UI:Start()
     }, self.Gui)
 
     self.Fab = new("ImageButton", {
-        Name = "Fab",
+        Name = "MazaSpaceLauncher",
         Size = UDim2.fromOffset(52, 52),
-        Position = UDim2.new(0.5, -26, 0, 52),
+        Position = UDim2.new(0.5, 0, 0, 38),
+        AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = T.Card,
         BorderSizePixel = 0,
         AutoButtonColor = false,
@@ -3413,12 +3489,24 @@ function UI:Start()
     }, self.Surface)
     corner(self.Fab, 26)
     stroke(self.Fab, T.Accent, 1.5)
-    local monogram=icon(self.Fab,"M",UDim2.fromOffset(11,10),30,T.Accent)
-    monogram.ZIndex=201
-    for _,part in ipairs(monogram:GetDescendants()) do if part:IsA("GuiObject") then part.ZIndex=201 end end
+
+    local launcherIcon =
+        icon(
+            self.Fab,
+            "Combat",
+            UDim2.fromOffset(12, 12),
+            28,
+            T.Accent
+        )
+    launcherIcon.ZIndex = 201
+    for _, part in ipairs(launcherIcon:GetDescendants()) do
+        if part:IsA("GuiObject") then
+            part.ZIndex = 201
+        end
+    end
 
     self.Main = new("Frame", {
-        Size = UDim2.fromOffset(740, 500),
+        Size = UDim2.fromOffset(724, 604),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = T.Bg,
@@ -3426,70 +3514,93 @@ function UI:Start()
         Visible = false,
         ClipsDescendants = false,
     }, self.Surface)
-    corner(self.Main, 6)
+    corner(self.Main, 5)
     stroke(self.Main, T.Stroke, 1)
 
-    self.Sidebar = new("Frame", {
-        Size = UDim2.new(0, 184, 1, 0),
-        BackgroundColor3 = T.Sidebar,
-        BorderSizePixel = 0,
-    }, self.Main)
-    corner(self.Sidebar, 6)
-
-    self.SidebarEdge = new("Frame", {
-        Size = UDim2.new(0, 16, 1, 0),
-        Position = UDim2.new(1, -16, 0, 0),
-        BackgroundColor3 = T.Sidebar,
-        BorderSizePixel = 0,
-    }, self.Sidebar)
-
-    self.Right = new("Frame", {
-        Size = UDim2.new(1, -184, 1, 0),
-        Position = UDim2.fromOffset(184, 0),
-        BackgroundTransparency = 1,
-        ClipsDescendants = false,
+    self.UIScale = new("UIScale", {
+        Scale = 1,
     }, self.Main)
 
     self.Top = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 94),
-        BackgroundTransparency = 1,
-        ZIndex = 5,
-    }, self.Right)
-
-    self.ColumnButton = new("TextButton", {
-        Name = "ColumnSwitch",
-        Size = UDim2.fromOffset(126, 38),
-        Position = UDim2.fromOffset(8, 7),
-        BackgroundColor3 = T.Card,
+        Size = UDim2.new(1, 0, 0, 50),
+        Position = UDim2.new(),
+        BackgroundColor3 = T.Bg,
         BorderSizePixel = 0,
-        Text = "Controls →",
-        TextSize = 12,
-        TextColor3 = T.Accent,
-        Font = Enum.Font.GothamBold,
-        AutoButtonColor = false,
-        Visible = false,
-        ZIndex = 20,
-    }, self.Top)
-    corner(self.ColumnButton, 8)
+        ZIndex = 5,
+    }, self.Main)
 
-    self.ColumnButton.Activated:Connect(function()
-        self.Column = self.Column == 1 and 2 or 1
-        self:ApplyColumns()
-    end)
+    self.Sidebar = new("Frame", {
+        Position = UDim2.fromOffset(0, 50),
+        Size = UDim2.new(0, 218, 1, -76),
+        BackgroundColor3 = T.Sidebar,
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+    }, self.Main)
+
+    self.SidebarDivider = new("Frame", {
+        Position = UDim2.fromOffset(218, 50),
+        Size = UDim2.new(0, 1, 1, -75),
+        BackgroundColor3 = T.Stroke,
+        BorderSizePixel = 0,
+    }, self.Main)
+
+    self.Right = new("Frame", {
+        Size = UDim2.new(1, -234, 1, -90),
+        Position = UDim2.fromOffset(226, 58),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+    }, self.Main)
+
+    self.Footer = label(
+        self.Main,
+        "MazaSpace · connected modules",
+        11,
+        T.Sub,
+        Enum.Font.Code,
+        UDim2.new(0, 0, 1, -24),
+        UDim2.new(1, 0, 0, 24)
+    )
+    self.Footer.TextXAlignment =
+        Enum.TextXAlignment.Center
+    self.Footer.BackgroundTransparency = 0
+    self.Footer.BackgroundColor3 = T.Card
+
+    self.HideButton = new("TextButton", {
+        Size = UDim2.fromOffset(22, 19),
+        Position = UDim2.new(1, -27, 1, -22),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Text = "−",
+        TextColor3 = T.Sub,
+        TextSize = 13,
+        Font = Enum.Font.Code,
+        AutoButtonColor = false,
+        ZIndex = 30,
+    }, self.Main)
+
+    self:Connect(
+        self.HideButton.Activated,
+        function()
+            self:SetOpen(false)
+        end
+    )
 
     self:BuildSidebar()
     self:BuildTop()
     self:BuildPages()
     self:GroupSections()
+    self:ComposePages()
     self:BindDrag()
-
 
     self:Connect(
         self.Ctx.Services.UserInputService.InputBegan,
         function(input, processed)
             if not processed
                 and not self.Ctx.Services.UserInputService:GetFocusedTextBox()
-                and (input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.LeftShift) then
+                and (
+                    input.KeyCode == Enum.KeyCode.RightShift
+                    or input.KeyCode == Enum.KeyCode.LeftShift
+                ) then
                 self:SetOpen(not self.IsOpen)
             end
         end
@@ -3501,7 +3612,8 @@ function UI:Start()
             self:Layout(false)
         end
     )
-    self:SelectMenu("Farm")
+
+    self:SelectMenu("Main")
     self:SetOpen(true)
 
     self.Ctx:RegisterJob(
@@ -3517,7 +3629,6 @@ function UI:Start()
         self:RefreshStatus()
     end)
 end
-
 function UI:Stop()
     local blur =
         game:GetService("Lighting"):FindFirstChild("MazxhubUIBlur")
