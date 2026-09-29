@@ -220,7 +220,7 @@ local IconPaths = {
 local function icon(parent, name, position, size, color)
     local aliases={Quests="Dialogue",["Hunter Exam"]="Defense",["Unlock Market"]="Market",["Unlock Dungeon"]="Dungeon",
         ["Mob Farm"]="Farm",["Boss Farm"]="Defense",Aimbot="Combat",Skill="Instakill",World="Location",Teleport="Location",
-        Raids="Dungeon",["Combat tools"]="Main",["Character tools"]="Player",["ESP tools"]="Visuals"}
+        Raids="Dungeon",["Combat tools"]="Main",["ESP tools"]="Visuals"}
     name=aliases[name] or name
     local canvas=make("Frame",{Name="Icon_"..name,BackgroundTransparency=1,Size=UDim2.fromOffset(size,size),Position=position},parent)
     if name=="M" then
@@ -452,24 +452,32 @@ local function contains(text,query) return string.find(string.lower(UI:Translate
 function UI:Filter()
     local query=search.Text
     for _,s in ipairs(self.Sections) do
-        local titleMatch=query~="" and contains(s.Title,query)
-        local found=false
-        for _,r in ipairs(s.Rows) do
-            r.Node.Visible=query=="" or titleMatch or contains(r.Text,query)
-            found=found or r.Node.Visible
+        if s.DisabledReference then
+            s.Frame.Visible=false
+        else
+            local titleMatch=query~="" and contains(s.Title,query)
+            local found=false
+            for _,r in ipairs(s.Rows) do
+                r.Node.Visible=query=="" or titleMatch or contains(r.Text,query)
+                found=found or r.Node.Visible
+            end
+            s.Frame.Visible=query=="" or titleMatch or found
+            s.Body.Visible=query~="" or not s.Collapsed
+            s.Chevron.Rotation=s.Body.Visible and 0 or -90
         end
-        s.Frame.Visible=query=="" or titleMatch or found
-        s.Body.Visible=query~="" or not s.Collapsed
-        s.Chevron.Rotation=s.Body.Visible and 0 or -90
     end
 end
 connect(search:GetPropertyChangedSignal("Text"),function()
     local query=search.Text
     if query~="" then
         for _,s in ipairs(UI.Sections) do
-            local matches=contains(s.Title,query)
-            for _,r in ipairs(s.Rows) do if contains(r.Text,query) then matches=true;break end end
-            if matches then UI:SelectPage(s.Page);break end
+            if not s.DisabledReference then
+                local matches=contains(s.Title,query)
+                for _,r in ipairs(s.Rows) do
+                    if contains(r.Text,query) then matches=true;break end
+                end
+                if matches then UI:SelectPage(s.Page);break end
+            end
         end
     end
     UI:Filter()
@@ -482,7 +490,7 @@ local navigation={
     {Title="Quest",Items={{"Quests","Story quests"},{"Hunter Exam","Hunter Exam"},{"Unlock Market","Unlock Market"},{"Unlock Dungeon","Unlock Dungeon"}}},
     {Title="Instances",Items={{"Dungeon","Dungeon"},{"Raids","Raids"}}},
     {Title="World",Items={{"World","World"},{"Teleport","Teleport"}}},
-    {Title="Player",Items={{"Player","Player"},{"Character tools","Character tools"},{"Visuals","Visuals"},{"ESP tools","ESP tools"}}},
+    {Title="Player",Items={{"Player","Player"},{"Visuals","Visuals"},{"ESP tools","ESP tools"}}},
     {Title="System",Items={{"Config","Settings"},{"Webhook","Webhook"}}},
 }
 local function page(name)
@@ -510,9 +518,9 @@ local function buildNavigation()
         heading:FindFirstChildOfClass("UIStroke"):Destroy()
         local children=make("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1},holder)
         stack(children,1)
-        local record={Title=group.Title,Heading=heading,Body=children,Open=group.Title=="Combat" or group.Title=="Farm",Tabs={}}
-        children.Visible=record.Open
-        heading.Text="  "..group.Title..(record.Open and "  ▾" or "  ▸")
+        local record={Title=group.Title,Heading=heading,Body=children,Open=true,Tabs={}}
+        children.Visible=true
+        heading.Text="  "..group.Title.."  ▾"
         table.insert(UI.NavGroups,record)
         connect(heading.Activated,function()
             record.Open=not record.Open
@@ -724,7 +732,7 @@ end
 
 -- Backend adapter: carries behavior from the user's modules into the native UI.
 local T={Text=C.Text,Sub=C.Muted,Accent=C.Accent,Mint=C.Accent,Gold=Color3.fromRGB(216,177,135),Danger=Color3.fromRGB(245,88,108),Card=C.Field,Stroke=C.Line}
-local destinations={['Mob Farm']='Mob Farm',['Boss Farm']='Boss Farm',Combat='Combat tools',Skill='Skill',Player='Character tools',Teleport='Teleport',
+local destinations={['Mob Farm']='Mob Farm',['Boss Farm']='Boss Farm',Combat='Combat tools',Skill='Skill',Player='Player',Teleport='Teleport',
     World='World',Visuals='ESP tools',Settings='Config',Quests='Quests',Dungeon='Dungeon',Raids='Raids',Status='Home'}
 local sectionNames={Movement='Character',['NPCs — ทุกโซน']='Teleport to NPC',Players='Teleport to player',
     ['ESP ผู้เล่น']='Players',['ESP NPC ใน ActiveNpcs']='Mobs',['Auto Skills']='Auto Skill',['Mob farm (on/off)']='Mob Farm',
@@ -3028,6 +3036,14 @@ end
 end
 
 -- Native layout only: no BuildTabs, old Sidebar, old columns, or legacy page frames.
+-- Hide the untouched reference/demo cards. Every visible primary page below is backed by live modules.
+for _,s in ipairs(self.Sections) do
+    if s.Reference then
+        s.Frame.Visible=false
+        s.DisabledReference=true
+    end
+end
+
 self:BuildCombatPage()
 self:BuildMobFarmPage()
 self:BuildBossFarmPage()
@@ -3041,7 +3057,181 @@ self:BuildRaidsPage()
 self:BuildWorldPage()
 self:BuildSkillPage()
 self:BuildStatusPage()
-note(section("Home",1,"Interface preview"),"Reference cards keep their settings in this UI. Controls without a connected callback show UI preview in the footer. Existing gameplay controls are in the tools pages.")
+
+do
+    local farm=self:Farm()
+    local combat=self:Combat()
+    local aimbot=self:Aimbot()
+    local skill=self:Skill()
+    local quest=self:Quest()
+    local world=self:World()
+    local playerModule=self:Player()
+    local teleport=self:Teleport()
+    local visuals=self:Visuals()
+    local settings=self:Settings()
+
+    local function top(s,orderValue)
+        s.Frame.LayoutOrder=orderValue or -5000
+        return s
+    end
+
+    -- MAIN: real quick controls.
+    local s=top(section("Main",1,"Combat"),-7000)
+    toggle(s,"live.main.autoAttack","Auto Attack",farm.AutoAttack==true)
+    self:On("live.main.autoAttack",function(on)
+        farm.AutoAttack=on
+        if not on then combat:ReleaseAttack() end
+    end)
+    toggle(s,"live.main.fastAttack","Fast Attack",farm.FastAttack==true)
+    self:On("live.main.fastAttack",function(on)
+        farm.FastAttack=on
+        combat:ResetProgress()
+    end)
+    toggle(s,"live.main.comboReset","Continuous Combo Reset",farm.BypassComboGate==true)
+    self:On("live.main.comboReset",function(on)
+        farm.BypassComboGate=on
+        if on then combat:BindGameComboGate() else combat:UnbindGameComboGate() end
+    end)
+    slider(s,"live.main.attackRange","Attack range",5,25,farm.AttackRange or 12," studs")
+    self:On("live.main.attackRange",function(v) farm.AttackRange=v end)
+    dropdown(s,"live.main.weapon","Weapon slot",{"ช่อง 1","ช่อง 2","ช่อง 3","ช่อง 4","ช่อง 5"},false,farm.SelectedWeapon or "ช่อง 1")
+    self:On("live.main.weapon",function(v)
+        farm.SelectedWeapon=v
+        farm._lastHotbarSelection=nil
+        farm._lastHotbarCharacter=nil
+        combat.EquipReadyAt=0
+    end)
+
+    s=top(section("Main",2,"Aimbot"),-7000)
+    toggle(s,"live.main.aimbot","Aimbot",aimbot.Enabled==true)
+    self:On("live.main.aimbot",function(on) aimbot:SetEnabled(on) end)
+    toggle(s,"live.main.showFov","Show FOV circle",aimbot.ShowFOV==true)
+    self:On("live.main.showFov",function(on) aimbot:SetShowFOV(on) end)
+    slider(s,"live.main.fov","FOV radius",50,500,aimbot.FOV or 180," px")
+    self:On("live.main.fov",function(v) aimbot:SetFOV(v) end)
+    toggle(s,"live.main.skillAim","Skill Aimbot",aimbot.SkillEnabled==true)
+    self:On("live.main.skillAim",function(on) aimbot:SetSkillEnabled(on) end)
+
+    s=top(section("Main",1,"Quest"),-6900)
+    toggle(s,"live.main.autoQuest","Auto Quest",farm.AutoQuest==true)
+    self:On("live.main.autoQuest",function(on) quest:SetAutoQuest(on) end)
+    toggle(s,"live.main.autoSkills","Auto Skills",skill.Enabled==true)
+    self:On("live.main.autoSkills",function(on) skill:SetEnabled(on) end)
+
+    s=top(section("Main",2,"Training"),-6900)
+    toggle(s,"live.main.pushups","Auto Pushups",world.Pushups.Enabled==true)
+    self:On("live.main.pushups",function(on) world:SetPushupsEnabled(on) end)
+    toggle(s,"live.main.thunder","Auto Thunder Breathing",world.Thunder.Enabled==true)
+    self:On("live.main.thunder",function(on) world:SetThunderEnabled(on) end)
+    toggle(s,"live.main.cup","Cup2 ESP",world.Cup.Enabled==true)
+    self:On("live.main.cup",function(on) world:SetCupEnabled(on) end)
+
+    s=top(section("Main",2,"Defense"),-6800)
+    toggle(s,"live.main.god","God Mode (local)",playerModule.GodModeEnabled==true)
+    self:On("live.main.god",function(on) playerModule:SetGodMode(on) end)
+    toggle(s,"live.main.noclip","No Clip",playerModule.NoClipEnabled==true)
+    self:On("live.main.noclip",function(on) playerModule:SetNoClip(on) end)
+
+    -- PLAYER is populated by BuildPlayerPage(), now mapped directly to the Player page.
+
+    -- VISUALS: real ESP controls.
+    s=top(section("Visuals",1,"Players"),-7000)
+    toggle(s,"live.visuals.players","Player ESP",visuals.Enabled==true)
+    self:On("live.visuals.players",function(on) visuals:SetPlayerESP(on) end)
+    toggle(s,"live.visuals.lines","Tracer / ESP Line",visuals.Lines==true)
+    self:On("live.visuals.lines",function(on) visuals:SetLines(on) end)
+    toggle(s,"live.visuals.outlines","Outline",visuals.Outlines==true)
+    self:On("live.visuals.outlines",function(on) visuals:SetOutlines(on) end)
+    toggle(s,"live.visuals.distance","Show distance",visuals.ShowDistance~=false)
+    self:On("live.visuals.distance",function(on) visuals:SetShowDistance(on) end)
+    toggle(s,"live.visuals.hideAim","Hide when aiming",visuals.HideWhenAiming==true)
+    self:On("live.visuals.hideAim",function(on) visuals:SetHideWhenAiming(on) end)
+    slider(s,"live.visuals.max","Max distance",100,5000,visuals.MaxDistance or 1000," studs")
+    self:On("live.visuals.max",function(v) visuals:SetMaxDistance(v) end)
+
+    s=top(section("Visuals",2,"Mobs"),-7000)
+    toggle(s,"live.visuals.bandit","ESP Bandit",visuals.Bandit==true)
+    self:On("live.visuals.bandit",function(on) visuals:SetBandit(on) end)
+    toggle(s,"live.visuals.civilian","ESP Civilian",visuals.Civilian==true)
+    self:On("live.visuals.civilian",function(on) visuals:SetCivilian(on) end)
+    toggle(s,"live.visuals.bosses","ESP Boss All",visuals.BossEnabled==true)
+    self:On("live.visuals.bosses",function(on) visuals:SetBossEnabled(on) end)
+    toggle(s,"live.visuals.hitbox","Monster hitbox ESP",visuals.MonsterHitboxESP==true)
+    self:On("live.visuals.hitbox",function(on) visuals:SetMonsterHitboxESP(on) end)
+
+    -- WEBHOOK: real test sender. No automatic event spam; only sends when enabled/tested.
+    s=top(section("Webhook",1,"Discord"),-7000)
+    toggle(s,"live.webhook.enabled","Discord webhook",false)
+    field(s,"live.webhook.url","Webhook URL","https://discord.com/api/webhooks/...")
+    field(s,"live.webhook.user","Ping user id","Discord user id")
+    toggle(s,"live.webhook.everyone","Ping everyone",false)
+    toggle(s,"live.webhook.username","Include username",true)
+
+    local function getRequest()
+        local env=type(getgenv)=="function" and getgenv() or _G
+        local synTable=rawget(env,"syn")
+        return (synTable and synTable.request)
+            or rawget(env,"http_request")
+            or rawget(env,"request")
+    end
+
+    action(s,"live.webhook.test","Send test",function()
+        if UI.Values["live.webhook.enabled"]~=true then
+            footer.Text="Webhook is disabled"
+            return
+        end
+
+        local url=tostring(UI.Values["live.webhook.url"] or "")
+        if url=="" then
+            footer.Text="Webhook URL is empty"
+            return
+        end
+
+        local requestFn=getRequest()
+        if type(requestFn)~="function" then
+            footer.Text="This executor has no HTTP request function"
+            return
+        end
+
+        local content="MazaSpace webhook test"
+        local userId=tostring(UI.Values["live.webhook.user"] or "")
+        if UI.Values["live.webhook.everyone"]==true then
+            content="@everyone "..content
+        elseif userId~="" then
+            content="<@"..userId.."> "..content
+        end
+
+        if UI.Values["live.webhook.username"]==true then
+            content=content.." • "..player.Name
+        end
+
+        local http=game:GetService("HttpService")
+        local ok,response=pcall(function()
+            return requestFn({
+                Url=url,
+                Method="POST",
+                Headers={["Content-Type"]="application/json"},
+                Body=http:JSONEncode({content=content}),
+            })
+        end)
+
+        local statusCode=ok and response and (response.StatusCode or response.Status) or nil
+        if ok and (statusCode==nil or tonumber(statusCode)<400) then
+            footer.Text="Webhook test sent"
+        else
+            footer.Text="Webhook test failed: "..tostring(statusCode or response)
+        end
+    end)
+
+    s=top(section("Webhook",2,"Notifications"),-7000)
+    note(s,"Webhook test is connected. Automatic event notifications can be added later without changing this UI.")
+
+    -- CONFIG already has live Settings controls below; keep a short live status card at the top.
+    s=top(section("Config",1,"MazaSpace"),-7000)
+    note(s,"Settings on this page are connected: language, menu key, labels, FPS boost, blur and animations.")
+end
+
+note(section("Home",1,"Interface status"),"All visible primary menus are connected to live module callbacks. Detailed controls remain available in the tools pages.")
 
 do
     local q=self:Quest()
